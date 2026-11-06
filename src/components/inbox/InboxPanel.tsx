@@ -94,7 +94,7 @@ export function InboxPanel() {
                   ? <p className="px-4 py-8 text-center text-[13px] text-ink-secondary">{t(query.trim() && listedRows(view).length ? "inbox.noMatch" : "inbox.empty")}</p>
                   : rows.map((row) => <InboxRowItem key={row.id} row={row} now={now} onOpen={open} onAction={run} />)}
               </div>
-              {!query.trim() && <InboxActive view={view} />}
+              {!query.trim() && <InboxActive view={view} activeThreads={false} />}
             </div>
           </>
         )}

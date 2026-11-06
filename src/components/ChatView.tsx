@@ -96,7 +96,7 @@ import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole } from "./BotRole";
 import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill"; import { useStoreRef } from "@/state/store-ref";
 import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
-import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { ModelPicker } from "./ModelPicker"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
+import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { ChatHeadInboxButton } from "./ChatHeadInbox"; import { DraggableHeaderPill } from "./DraggableHeaderPill"; import { ModelPicker } from "./ModelPicker"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
 import { useChatFindRequests } from "@/lib/chat-find";
 import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
 import { SpeakButton } from "./SpeakButton";
@@ -1029,7 +1029,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
         {...headerDragProps}
         className={cn(
           // A container query never matches the container itself, so the row that wraps is the child below.
-          "@container/chathead",
+          "relative @container/chathead",
           simpleHead ? "px-5 pt-2.5 pb-2.5 max-md:pl-14 max-md:pr-3" : "px-5 py-3 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
         )}
       >
@@ -1100,10 +1100,26 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             </div>
           )}
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {!phone && !simpleHead && (
-            <>
-              {/* A17 (v140): el nombre del bot con su lapiz, arriba a la derecha (donde estaba el modelo). */}
-              <div data-chathead-name className={cn(CHATHEAD_PILL, "pr-1")}>
+          {!phoneMenu && <button
+            data-tour="computer"
+            onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
+            className={cn(
+              "relative",
+              "flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
+              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
+            )}
+            title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
+          >
+            <Monitor size={18} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
+          </button>}
+          {!phone && <ChatHeadInboxButton />}
+          {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
+        </div>
+        </div>
+        {!phone && !simpleHead && (
+          <div data-chathead-pill-layer className="pointer-events-none absolute inset-y-0 left-5 right-5 max-md:left-14 max-md:right-3" style={headerNoDragStyle}>
+            <DraggableHeaderPill storageKey="bot-name" defaultRight={88}>
+              <div data-chathead-name className={cn(CHATHEAD_PILL, "pr-1", ELEVATED_HOVER)}>
                 <RenameTitle
                   value={bot.name}
                   onCommit={(name) => {
@@ -1122,25 +1138,12 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
                   inputClassName="max-w-[220px] rounded-full bg-inset px-2 py-0.5 text-[14px] font-semibold"
                 />
               </div>
-              {/* A19 (v140): desplegable de hilos abiertos, entre el nombre y el icono de la computadora. */}
+            </DraggableHeaderPill>
+            <DraggableHeaderPill storageKey="all-threads" defaultRight={240}>
               <TaskPicker bot={bot} variant="header" />
-            </>
-          )}
-          {!phoneMenu && <button
-            data-tour="computer"
-            onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
-            className={cn(
-              "relative",
-              "flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
-              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
-            )}
-            title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
-          >
-            <Monitor size={18} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
-          </button>}
-          {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
-        </div>
-        </div>
+            </DraggableHeaderPill>
+          </div>
+        )}
       </div>
 
       {(advanced || remoteClient) && <BotActivityPicker bot={bot} />}{privateChat && team && <TeamPrivateFirstLine key={team.id} team={team} />}
