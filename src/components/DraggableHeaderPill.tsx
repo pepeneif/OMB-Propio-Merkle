@@ -101,7 +101,7 @@ export function DraggableHeaderPill({
       data-header-pill={storageKey}
       data-dragging={dragging ? "" : undefined}
       style={style}
-      className={cn("pointer-events-auto select-none", dragging ? "cursor-grabbing" : "cursor-grab", className)}
+      className={cn("pointer-events-auto select-none", dragging ? "cursor-grabbing" : "cursor-grab", left !== null && left < 0.5 && "[&_[data-task-menu]]:left-0 [&_[data-task-menu]]:right-auto", className)}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         const el = ref.current;

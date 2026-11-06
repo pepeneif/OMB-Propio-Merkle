@@ -1118,7 +1118,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
         </div>
         {!phone && !simpleHead && (
           <div data-chathead-pill-layer className="pointer-events-none absolute inset-y-0 left-5 right-5 max-md:left-14 max-md:right-3" style={headerNoDragStyle}>
-            <DraggableHeaderPill storageKey="bot-name" defaultRight={88}>
+            <DraggableHeaderPill storageKey="bot-name" defaultRight={120}>
               <div data-chathead-name className={cn(CHATHEAD_PILL, "pr-1", ELEVATED_HOVER)}>
                 <RenameTitle
                   value={bot.name}
@@ -1139,7 +1139,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
                 />
               </div>
             </DraggableHeaderPill>
-            <DraggableHeaderPill storageKey="all-threads" defaultRight={240}>
+            <DraggableHeaderPill storageKey="all-threads" defaultRight={258}>
               <TaskPicker bot={bot} variant="header" />
             </DraggableHeaderPill>
           </div>
