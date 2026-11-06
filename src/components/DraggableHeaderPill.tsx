@@ -108,16 +108,18 @@ export function DraggableHeaderPill({
         const bar = el?.parentElement;
         if (!el || !bar || left === null) return;
         event.stopPropagation();
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
         drag.current = { startX: event.clientX, startLeft: left, barWidth: bar.clientWidth, pillWidth: el.offsetWidth, moved: false };
-        setDragging(true);
       }}
       onPointerMove={(event) => {
         const state = drag.current;
         if (!state) return;
         const dx = event.clientX - state.startX;
         if (!state.moved && Math.abs(dx) < 4) return;
-        state.moved = true;
+        if (!state.moved) {
+          state.moved = true;
+          setDragging(true);
+          try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+        }
         setLeft(clampPillLeft(state.startLeft + dx / state.barWidth, state.pillWidth, state.barWidth));
       }}
       onPointerUp={() => end(true)}
