@@ -3,7 +3,7 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { ThreadLinkContext } from "@/components/ThreadLinkMenu";
 import { useShowThreads } from "@/lib/thread-preferences";
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Monitor, RefreshCw, Reply, Square, Webhook } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Download, Monitor, RefreshCw, Reply, Search, Square, Webhook } from "lucide-react";
 import { WorkingDots } from "@/components/WorkingIndicator";
 import { ACTION_ICON, ChatBusyContext, CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction, type MessageMenuItem } from "@/components/MessageActions";
 import { copyText } from "@/lib/copy-text";
@@ -54,7 +54,7 @@ import { THIS_COMPUTER_NOT_READY } from "../../shared/your-computer";
 import { BotAvatar } from "./Avatar";
 import { TurnPresence } from "./TurnPresence";
 import { showToolCallsEnabled, skillAuthoringEnabled } from "@/lib/feature-flags";
-import { normalizeState, stateForBot } from "@/lib/mascot";
+import { normalizeState } from "@/lib/mascot";
 import { peerLine, peerRequest, type PeerLine } from "@/lib/peer-message";
 import { showWorkingDots } from "@/lib/turn-tail";
 import { lastNonReceipt } from "@/lib/receipts";
@@ -83,6 +83,8 @@ import { Composer } from "./Composer";
 import { ChatErrorBanner, ChatNotice } from "./ChatErrorBanner";
 import { ThreadContextWarning } from "./ContextWarning";
 import { UsageAlert, useLimitResetContinue } from "./EngineUsage";
+import { contextChip, contextDetail, contextShare, formatTokens, lastTurnDetail, uncachedInput, usageChip, usageDetail } from "@/lib/usage";
+import { copyTranscriptToClipboard, downloadMarkdownTranscript, formatTranscriptMarkdown, slugifyTranscriptFilename } from "@/lib/export-transcript";
 import { ChatFindBar } from "./ChatFindBar";
 import { ReplyQuote } from "./ReplyQuote";
 import { ConnectorCard } from "./ConnectorCard";
@@ -93,10 +95,9 @@ import { CallRecordRow } from "./CallRecordRow";
 import { AttachmentGallery, collectMessageFiles, replyAttachmentGroup, splitMessageAttachments } from "./AttachmentGallery";
 import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
-import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole } from "./BotRole";
-import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill"; import { useStoreRef } from "@/state/store-ref";
-import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
-import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { ChatHeadInboxButton } from "./ChatHeadInbox"; import { DraggableHeaderPill } from "./DraggableHeaderPill"; import { ModelPicker } from "./ModelPicker"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
+import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole } from "./BotRole"; import { ChatHeadConversation } from "./ChatHeadConversation";
+import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { useStoreRef } from "@/state/store-ref";
+import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { ChatHeadInboxButton } from "./ChatHeadInbox"; import { ModelPicker } from "./ModelPicker"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
 import { useChatFindRequests } from "@/lib/chat-find";
 import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
 import { SpeakButton } from "./SpeakButton";
@@ -826,8 +827,6 @@ const MessagesList = memo(function MessagesList({
   );
 });
 
-const CHATHEAD_PILL = `flex h-9 min-w-0 items-center gap-2 rounded-full py-0.5 pl-[18px] text-ink ${ELEVATED_FLOAT}`;
-
 export function ChatView({ bot: profile }: { bot: Bot }) {
   const bot = useMemo(() => currentTaskBot(profile), [profile]);
   const { state, dispatch } = useStore();
@@ -843,7 +842,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const canWrite = useCanWriteIn(bot.threadId, bot.yourAccess);
 
   const computerStarting = computerStartLine(state.computerStarts[bot.id], bot.name); useScreensWhile(Boolean(computerStarting));
-  const mascotMotion = state.mascotMotion?.botId === bot.id ? state.mascotMotion : null;
   const [findOpen, setFindOpen] = useState(false);
   const { replyTo, selectReply, clearReply, consumeReply, restoreReply } = useReplyDraft(
     bot.threadId,
@@ -915,7 +913,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const busy = Boolean(bot.busy);
   const stoppedAt = useStoppedAt(bot.threadId);
   const openedAt = useThreadOpenedAt(bot.threadId);
-  const headerAnimated = busy || (mascotMotion?.kind ?? "none") !== "none";
   const branch = useRef(messages);
   branch.current = messages;
   const onBranch = useCallback((messageId: string) => branch.current.some((m) => m.id === messageId), []);
@@ -1024,41 +1021,40 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
       <CallOverlay bot={bot} />
       <GlassScrollFrame className="flex-1 [--glass-tint:var(--color-app)]">
       {/* z-[25]: above the room set-up card (z-20), below the CallOverlay (z-30). */}
-      <GlassBar edge="top" fade={!remoteClient} className="z-[25]">
+      <GlassBar edge="top" fade={simpleHead} className="z-[25]">
       <div
         {...headerDragProps}
         className={cn(
           // A container query never matches the container itself, so the row that wraps is the child below.
-          "relative @container/chathead",
+          "@container/chathead",
           simpleHead ? "px-5 pt-2.5 pb-2.5 max-md:pl-14 max-md:pr-3" : "px-5 py-3 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
         )}
       >
-        <div data-chathead-row className={cn("flex items-center", phone ? "justify-between gap-2" : simpleHead ? "justify-end gap-2" : "justify-between @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1 @min-[30rem]/chathead:grid @min-[30rem]/chathead:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(max-content,1fr)]")}>
-        <div data-chathead-identity className={cn("flex min-w-0 items-center gap-2", phone ? "flex-1" : simpleHead ? undefined : "@max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-2 @min-[30rem]/chathead:justify-self-center", simpleHead && phone && "justify-center")} style={headerNoDragStyle}>
-          {simpleHead ? (
-            <ChatHeadPill
-              bot={bot}
-              avatar={{ state: stateForBot({ ...bot, messages }), motion: mascotMotion?.kind ?? "none", motionKey: mascotMotion?.nonce ?? 0, animated: headerAnimated }}
-              privacy={privateChat ? { kind: "private" } : ownHelper ? { kind: "ownHelper" } : sharedChat && team ? { kind: "shared", team: team.name, onlyPeopleAdded: bot.onlyPeopleAdded } : null}
-              onToggle={() => dispatch({ type: "toggleSettings", open: !state.settingsOpen })}
-            />
-          ) : advanced ? null : (
-            <button
-              type="button"
-              data-chathead-pill data-tour="bot-pill"
-              onClick={() => dispatch({ type: "toggleSettings", open: true })}
-              title={t("chat.openProfile")}
-              aria-label={t("chat.openProfileAria", { name: bot.name })}
-              className={cn("group flex h-9 min-w-0 items-center gap-2.5 rounded-full py-0.5 pl-2 pr-3.5 text-ink", ELEVATED_FLOAT, ELEVATED_HOVER)}
-            >
-              <BotAvatar bot={bot} state={stateForBot({ ...bot, messages })} size={24}
-                motion={mascotMotion?.kind ?? "none"} motionKey={mascotMotion?.nonce ?? 0} animated={headerAnimated} />
-              <span className="min-w-0 truncate text-[14px] font-medium text-ink">{bot.name}</span>
-              <ChevronRight size={14} aria-hidden="true" className="-ml-2.5 w-0 shrink-0 text-ink-secondary opacity-0 transition-[width,margin,opacity] duration-150 group-hover:ml-0 group-hover:w-3.5 group-hover:opacity-100 group-focus-visible:ml-0 group-focus-visible:w-3.5 group-focus-visible:opacity-100" />
-            </button>
-          )}
-          {!phone && !simpleHead && <ChatHeadRole bot={bot} />}<span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>{!simpleHead && privateChat && <TeamPrivateHeader />}{!simpleHead && ownHelper && <TeamOwnHelperHeader />}{!simpleHead && sharedChat && team && <TeamSharedHeader team={team} onlyPeopleAdded={bot.onlyPeopleAdded} />}
-          {!simpleHead && !bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">{t("chat.teammatesWorking")}</span>}
+        <div data-chathead-row className="flex items-center gap-2 @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1">
+        <div data-chathead-identity className="flex min-w-0 items-center gap-2 @max-[30rem]/chathead:basis-full" style={headerNoDragStyle}>
+          {/* Personalizacion Manager (0010): solo el nombre, sin icono ni pildora;
+              el lapiz sigue abriendo el perfil. La etiqueta de Chief of Staff no
+              se repite aqui (ya esta en la barra lateral). */}
+          <RenameTitle
+            value={bot.name}
+            onCommit={(name) => {
+              if (window.ogb?.remoteClient?.active) {
+                void api(`/api/bots/${bot.id}/profile`, { method: "PATCH", body: JSON.stringify({ name }) })
+                  .then(({ bot: updated }) => dispatch({ type: "botPatched", bot: updated }))
+                  .catch((cause) => dispatch({ type: "error", message: cause instanceof Error ? cause.message : String(cause) }));
+              } else {
+                dispatch({ type: "updateBot", botId: bot.id, patch: { name } });
+              }
+            }}
+            onActivate={() => dispatch({ type: "toggleSettings", open: true })}
+            showEditButton
+            className="min-w-0 truncate text-[15px] font-semibold text-ink"
+            editButtonClassName="size-6 shrink-0 rounded-full"
+            inputClassName="max-w-[220px] rounded bg-inset px-1.5 py-0.5 text-[15px] font-semibold"
+          />
+          {!advanced && !remoteClient && <ChatHeadConversation bot={profile} />}
+          <ChatHeadRole bot={bot} /><span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>{privateChat && <TeamPrivateHeader />}{ownHelper && <TeamOwnHelperHeader />}{sharedChat && team && <TeamSharedHeader team={team} onlyPeopleAdded={bot.onlyPeopleAdded} />}
+          {!bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">{t("chat.teammatesWorking")}</span>}
           {(advanced || remoteClient) && awayFromMainThread(profile, showThreads) && (
             <button
               type="button"
@@ -1069,10 +1065,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               {t("chat.backToMainThread")}
             </button>
           )}
+          {/* Personalizacion Manager (0010): selector de hilos y copiar/descargar
+              pegados al nombre, a la IZQUIERDA. */}
+          {showThreads && <TaskPicker bot={bot} />}
+          <ChatHeaderExport bot={bot} messages={messages} />
         </div>
         <div
           data-chathead-controls
-          className={cn("relative flex shrink-0 items-center gap-2", !phone && "@max-[30rem]/chathead:ml-auto @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:justify-end @min-[30rem]/chathead:col-start-3 @min-[30rem]/chathead:justify-self-end")}
+          className="ml-auto flex shrink-0 items-center gap-2 @max-[30rem]/chathead:ml-auto @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:justify-end"
         >
           {!simpleHead && (bot.busy || bot.waitingForTeammates) && (
             <button
@@ -1088,24 +1088,18 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             </button>
           )}
           <ThreadContextWarning bot={bot} messages={messages} />
-          {phone && <UsageAlert engine={bot.modelSelection?.instanceId} />}
-          {/* A18 (v140): el modelo y la intensidad viven ahora dentro del menu ... */}
-          {/* A20 (v140): el selector de modelos de la 130, invisible, para que el menu ... lo abra directo. */}
-          {/* A21 (v140): el selector oculto se ancla al borde inferior-derecho del contenedor de controles, que
-              es donde vive el menu de 3 puntos, para que su ventana abra pegada y alineada con ese menu en vez
-              de muy a la izquierda. Se saca del flujo (absolute) para no meter un hueco de gap. */}
-          {advanced && !remoteClient && (
-            <div className="absolute right-0 top-full" aria-hidden="true">
-              <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} hideTrigger />
-            </div>
-          )}
+          <UsageAlert engine={bot.modelSelection?.instanceId} />
+          {/* Personalizacion Manager (0010): buscar y el uso (SIEMPRE uncached + ctx %)
+              a la DERECHA, antes del modelo. */}
+          <ChatHeaderFind findOpen={findOpen} onFind={() => setFindOpen((open) => !open)} />
+          <HeaderUsageChip bot={bot} />
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {!phoneMenu && <button
+          {advanced && !remoteClient && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
+          {(advanced || remoteClient) && <button
             data-tour="computer"
             onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
             className={cn(
-              "relative",
-              "flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
+              "relative flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
               state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
             )}
             title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
@@ -1116,34 +1110,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
         </div>
-        {!phone && !simpleHead && (
-          <div data-chathead-pill-layer className="pointer-events-none absolute inset-y-0 left-5 right-5 max-md:left-14 max-md:right-3" style={headerNoDragStyle}>
-            <DraggableHeaderPill storageKey="bot-name" defaultRight={120}>
-              <div data-chathead-name className={cn(CHATHEAD_PILL, "pr-1", ELEVATED_HOVER)}>
-                <RenameTitle
-                  value={bot.name}
-                  onCommit={(name) => {
-                    if (window.ogb?.remoteClient?.active) {
-                      void api(`/api/bots/${bot.id}/profile`, { method: "PATCH", body: JSON.stringify({ name }) })
-                        .then(({ bot: updated }) => dispatch({ type: "botPatched", bot: updated }))
-                        .catch((cause) => dispatch({ type: "error", message: cause instanceof Error ? cause.message : String(cause) }));
-                    } else {
-                      dispatch({ type: "updateBot", botId: bot.id, patch: { name } });
-                    }
-                  }}
-                  onActivate={() => dispatch({ type: "toggleSettings", open: true })}
-                  showEditButton
-                  className="truncate text-[14px] font-semibold text-ink"
-                  editButtonClassName="size-6 rounded-full"
-                  inputClassName="max-w-[220px] rounded-full bg-inset px-2 py-0.5 text-[14px] font-semibold"
-                />
-              </div>
-            </DraggableHeaderPill>
-            <DraggableHeaderPill storageKey="all-threads" defaultRight={258}>
-              <TaskPicker bot={bot} variant="header" />
-            </DraggableHeaderPill>
-          </div>
-        )}
       </div>
 
       {(advanced || remoteClient) && <BotActivityPicker bot={bot} />}{privateChat && team && <TeamPrivateFirstLine key={team.id} team={team} />}
@@ -1316,5 +1282,90 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
     </main>
     </ThreadLinkContext>
+  );
+}
+
+/** Personalizacion Manager (0010): copiar como Markdown y descargar .md, junto
+ * al nombre, en el grupo de la IZQUIERDA. Mismo comportamiento que sus
+ * entradas del menu "...". */
+function ChatHeaderExport({ bot, messages }: { bot: Bot; messages: readonly Message[] }) {
+  const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | null>(null);
+  const hasMessages = messages.length > 0;
+  const transcript = () => formatTranscriptMarkdown({ title: bot.name, messages, botName: bot.name, isGroup: false });
+  const iconButton = "rounded-md p-1.5 hover:bg-raised disabled:opacity-40 disabled:hover:bg-transparent";
+  return (
+    <>
+      <button
+        type="button"
+        data-header-copy
+        disabled={!hasMessages}
+        onClick={() => { void copyTranscriptToClipboard(transcript()).then((ok) => setCopyStatus(ok ? "copied" : "failed")); }}
+        className={cn(iconButton, copyStatus ? "text-accent" : "text-ink-secondary hover:text-ink")}
+        title={copyStatus === "copied" ? t("chat.export.copied") : copyStatus === "failed" ? t("chat.export.copyFailed") : t("chat.export.copy")}
+        aria-label={t("chat.export.copy")}
+      >
+        <Copy size={18} />
+      </button>
+      <button
+        type="button"
+        data-header-download
+        disabled={!hasMessages}
+        onClick={() => downloadMarkdownTranscript(slugifyTranscriptFilename(bot.name), transcript())}
+        className={cn(iconButton, "text-ink-secondary hover:text-ink")}
+        title={t("chat.export.download")}
+        aria-label={t("chat.export.download")}
+      >
+        <Download size={18} />
+      </button>
+    </>
+  );
+}
+
+/** Personalizacion Manager (0010): buscar en la conversacion, en el grupo DERECHO. */
+function ChatHeaderFind({ findOpen, onFind }: { findOpen: boolean; onFind: () => void }) {
+  const iconButton = "rounded-md p-1.5 hover:bg-raised disabled:opacity-40 disabled:hover:bg-transparent";
+  return (
+    <button
+      type="button"
+      data-header-find
+      onClick={onFind}
+      aria-label={t("chat.find")}
+      aria-pressed={findOpen}
+      className={cn(iconButton, findOpen ? "text-accent" : "text-ink-secondary hover:text-ink")}
+      title={t("chat.findShortcut")}
+    >
+      <Search size={18} />
+    </button>
+  );
+}
+
+/** Personalizacion Manager (0010): el uso en la cabecera, SIEMPRE como
+ * uncached + ctx % (decision de Jose), nunca el coste. */
+function HeaderUsageChip({ bot }: { bot: Bot }) {
+  const { dispatch } = useStore();
+  const usage = bot.tasks?.find((task) => task.threadId === bot.threadId)?.usage;
+  if (!usage) return null;
+  const ctx = contextChip(usage);
+  const share = contextShare(usage);
+  const uncached = formatTokens(uncachedInput(usage));
+  if (!usageChip(usage) && !ctx) return null;
+  const detail = [
+    usage.turns === 1 ? t("chat.usage.turnsOne") : t("chat.usage.turnsMany", { count: usage.turns }),
+    usageDetail(usage),
+    lastTurnDetail(usage),
+    contextDetail(usage),
+    share?.tone === "danger" ? t("chat.usage.contextNudge") : null,
+  ].filter(Boolean).join("\n");
+  return (
+    <button
+      type="button"
+      onClick={() => dispatch({ type: "toggleSettings", open: true, section: "usage" })}
+      className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline/40 bg-raised/60 px-2.5 py-1 text-[12px] tabular-nums text-ink-secondary hover:bg-raised hover:text-ink"
+      title={detail}
+      data-testid="header-usage"
+    >
+      <span>{t("chat.usage.uncachedShort", { tokens: uncached })}</span>
+      {ctx && <span className={cn(share?.tone === "danger" ? "text-danger" : share?.tone === "warning" ? "text-warning" : "opacity-70")}>{ctx}</span>}
+    </button>
   );
 }

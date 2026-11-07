@@ -1630,22 +1630,24 @@ body {
   --glass-edge: 20px;
   isolation: isolate;
 }
+/* Variante B (2026-11-07): la barra va SOLIDA, sin transparencia ni efecto vidrio,
+   como en la v0.1.130 (parche 0024 A1). */
 .glass-bar::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: color-mix(in srgb, var(--glass-tint, var(--color-panel)) 55%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
+  background: var(--glass-tint, var(--color-panel));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .glass-bar[data-glass-bar="top"]::before {
-  mask-image: linear-gradient(to bottom, black calc(100% - var(--glass-edge)), transparent);
+  mask-image: none;
 }
 .glass-bar[data-glass-bar="bottom"]::before {
   top: calc(-1 * var(--glass-reach, 0px));
-  mask-image: linear-gradient(to top, black calc(100% - var(--glass-reach, 0px)), transparent);
+  mask-image: none;
 }
 /* A fading bar has no tint and no blur. What scrolls under it fades straight into the canvas: hidden
    at the window edge, back to full strength over the last --glass-fade of the bar, which is the whole
@@ -1654,7 +1656,8 @@ body {
   --glass-fade: 60px;
 }
 .glass-bar[data-glass-fade]::before {
-  background: linear-gradient(to bottom, var(--color-app), var(--color-app) calc(100% - var(--glass-fade)), transparent);
+  /* Variante B: color de la app solido, sin degradado. */
+  background: var(--color-app);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   mask-image: none;

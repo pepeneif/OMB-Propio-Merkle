@@ -334,7 +334,7 @@ describe("sidebar head and foot", () => {
       const head = at('data-glass-bar="top"');
       const topRow = at("data-sidebar-top-row");
       const search = at('aria-label="Search bots and messages"');
-      const list = at('data-scroll-fade-frame=""');
+      const list = at("glass-scroller-content");
       const foot = at('data-glass-bar="bottom"');
       const automations = at('data-sidebar-nav="automations"');
       const places = at('data-sidebar-nav="team-map"');

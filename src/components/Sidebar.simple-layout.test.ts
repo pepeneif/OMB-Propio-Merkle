@@ -131,7 +131,7 @@ describe("Simple-mode sidebar layout", () => {
     expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Work"]);
   });
 
-  it("fades the list's edges in both modes, with the top buttons and the tiles fixed above it", () => {
+  it("fades the list's edges, with the top buttons and the tiles fixed above it, and keeps Advanced's glass", () => {
     fixture.state = { ...fixture.state, bots: [bot("chief", { chiefOfStaff: true, pinned: true }), bot("atlas", { pinned: true }), bot("bea")] };
     const simple = render();
     expect(simple.tree.find((node) => node.type === GlassScrollFrame)!.props.fade).toBe(true);
@@ -142,8 +142,8 @@ describe("Simple-mode sidebar layout", () => {
     expect(simple.root.props.className).toContain("max-md:[--scroll-fade-surface:var(--color-app)]");
     fixture.advanced = true;
     const advanced = render();
-    expect(advanced.tree.find((node) => node.type === GlassScrollFrame)!.props.fade).toBe(true);
-    expect(advanced.root.props.className).toContain("max-md:[--scroll-fade-surface:var(--color-app)]");
+    expect(advanced.tree.find((node) => node.type === GlassScrollFrame)!.props.fade).toBe(false);
+    expect(advanced.root.props.className).not.toContain("--scroll-fade-surface");
   });
 
   it("keeps Advanced's Pinned heading and rows, with the Chief as a row", () => {
