@@ -1027,7 +1027,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
         className={cn(
           // A container query never matches the container itself, so the row that wraps is the child below.
           "@container/chathead",
-          simpleHead ? "px-5 pt-2.5 pb-2.5 max-md:pl-14 max-md:pr-3" : "px-5 py-3 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
+          simpleHead ? "px-5 py-1 max-md:pl-14 max-md:pr-3" : "px-5 py-1.5 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
         )}
       >
         <div data-chathead-row className="flex items-center gap-2 @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1">
