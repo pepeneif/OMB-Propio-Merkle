@@ -239,7 +239,7 @@ function ConversationTaskPicker({
           variant === "header" ? cn(ELEVATED_FLOAT, ELEVATED_HOVER) : COMPACT_BUBBLE,
         )}
       >
-        <span dir="auto" className="truncate @max-4xl/chathead:hidden">{variant === "header" ? (current?.title ?? t("task.switch")) : t("task.switch")}</span>
+        <span dir="auto" className="truncate @max-4xl/chathead:hidden">{current ? localizedTaskTitle(current.title?.trim() || t("task.newShort")) : t("task.switch")}</span>
         <span className="shrink-0 tabular-nums opacity-60 @max-4xl/chathead:opacity-100">{tasks.length}</span>
         {workingElsewhere > 0 && (
           <span

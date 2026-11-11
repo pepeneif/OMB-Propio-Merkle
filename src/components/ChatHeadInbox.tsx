@@ -29,8 +29,8 @@ export function ChatHeadInboxButton() {
       aria-pressed={open}
       onClick={toggle}
       className={cn(
-        "relative flex size-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
-        open ? "bg-ink/[0.06] text-accent" : "text-ink-secondary hover:text-ink",
+        "relative flex size-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-raised",
+        open ? "bg-raised text-accent" : "text-ink-secondary hover:text-ink",
       )}
     >
       <Inbox size={18} strokeWidth={1.5} aria-hidden="true" />

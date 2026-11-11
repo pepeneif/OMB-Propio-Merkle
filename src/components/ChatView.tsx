@@ -98,7 +98,6 @@ import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole } from "./BotRole"; import { ChatHeadConversation } from "./ChatHeadConversation";
 import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { ThreadPresenceFaces } from "./TeamPresence"; import { useStoreRef } from "@/state/store-ref";
-import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
 import { ModelPicker } from "./ModelPicker";
 import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { ChatHeadInboxButton } from "./ChatHeadInbox"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine"; import { ownChatStarted } from "@/state/team-chats";
 
@@ -1033,7 +1032,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           simpleHead ? "px-5 py-1 max-md:pl-14 max-md:pr-3" : "px-5 py-1.5 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
         )}
       >
-        <div data-chathead-row className="flex items-center gap-2 @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1">
+        <div data-chathead-row className="flex w-full items-center justify-between gap-2 @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1">
         <div data-chathead-identity className="flex min-w-0 items-center gap-2 @max-[30rem]/chathead:basis-full" style={headerNoDragStyle}>
           {/* Personalizacion Manager (0010): solo el nombre, sin icono ni pildora;
               el lapiz sigue abriendo el perfil. La etiqueta de Chief of Staff no
@@ -1096,14 +1095,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               a la DERECHA, antes del modelo. */}
           <ChatHeaderFind findOpen={findOpen} onFind={() => setFindOpen((open) => !open)} />
           <HeaderUsageChip bot={bot} />
-          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />{!phoneMenu && <WatchScreenButton botId={bot.id} messages={messages} liveTools={liveTools} place={place} />}
           {advanced && !remoteClient && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
+          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />{!phoneMenu && <WatchScreenButton botId={bot.id} messages={messages} liveTools={liveTools} place={place} />}
           {(advanced || remoteClient) && <button
             data-tour="computer"
             onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
             className={cn(
               "relative",
-              "flex size-8 items-center justify-center rounded-full", ELEVATED_FLOAT, ELEVATED_HOVER,
+              "flex size-8 items-center justify-center rounded-md transition-colors hover:bg-raised",
               state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
             )}
             title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}

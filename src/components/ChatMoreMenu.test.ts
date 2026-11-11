@@ -198,7 +198,7 @@ describe("ChatHeaderMenu, Advanced mode's header ⋯", () => {
     expect(menu.items.find((item) => item.key === "inspector")).toMatchObject({ separatorBefore: true });
     expect(menu.items.every((item) => !item.disabled && item.heading !== "In Advanced mode")).toBe(true);
     expect(menu).toMatchObject({ placement: "below", openOnHover: true });
-    expect(menu.trigger).toMatch(/data-testid="chat-more" class="flex size-8 items-center justify-center rounded-full /);
+    expect(menu.trigger).toMatch(/data-testid="chat-more" class="flex size-8 items-center justify-center rounded-md /);
   });
 
   it("has no thread items even if rendered by ChatMoreMenu in Advanced mode", () => {

@@ -267,7 +267,7 @@ export function ChatHeaderMenu({ bot }: { bot: Bot }): JSX.Element {
         <span
           data-testid="chat-more"
           className={cn(
-            "flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
+            "flex size-8 items-center justify-center rounded-md transition-colors hover:bg-raised",
             open || on ? "text-accent" : "text-ink-secondary hover:text-ink",
           )}
           title={t("chat.more")}
