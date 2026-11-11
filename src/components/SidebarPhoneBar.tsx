@@ -1,4 +1,4 @@
-import { FolderOpen, LayoutGrid, Puzzle, Search, UsersRound, X, Zap } from "lucide-react";
+import { CalendarDays, FolderOpen, LayoutGrid, Network, Puzzle, Search, X, Zap } from "lucide-react";
 
 import { useCloudFilesReady } from "@/lib/cloud-files";
 import { t } from "@/lib/i18n";
@@ -19,15 +19,22 @@ export function SidebarPhoneBar({ query, onQuery }: { query: string; onQuery: (q
     {
       key: "automations",
       label: t("sidebar.nav.automations"),
-      icon: <Zap size={18} />,
-      active: state.activeView === "routines",
+      icon: <CalendarDays size={18} />,
+      active: state.activeView === "routines" && state.routinesFocus?.scope !== "triggers",
       attention: automationsNeedYou,
-      onSelect: () => dispatch({ type: "showRoutines", view: "list" }),
+      onSelect: () => dispatch({ type: "showRoutines", view: "list", scope: "schedules" }),
+    },
+    {
+      key: "triggers",
+      label: t("sidebar.nav.triggers"),
+      icon: <Zap size={18} />,
+      active: state.activeView === "routines" && state.routinesFocus?.scope === "triggers",
+      onSelect: () => dispatch({ type: "showRoutines", view: "list", scope: "triggers" }),
     },
     {
       key: "team-map",
       label: t("sidebar.nav.teamMap"),
-      icon: <UsersRound size={18} />,
+      icon: <Network size={18} />,
       active: state.activeView === "team-map",
       onSelect: () => dispatch({ type: "showTeamMap" }),
     },

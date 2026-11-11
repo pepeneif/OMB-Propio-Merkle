@@ -102,10 +102,10 @@ describe("room message actions", () => {
     expect(speak?.disabled).toBe(true);
   });
 
-  it("copies a person's message and folds a long one", () => {
+  it("copies a person's message and keeps a long one unfolded", () => {
     const html = markup([text("u", "user", "word ".repeat(200))]);
     expect(html).toContain("Copy message");
-    expect(html).toContain("Show full message");
+    expect(html).not.toContain("Show full message");
     expect(html).not.toContain("Show raw markdown");
   });
 

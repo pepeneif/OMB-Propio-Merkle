@@ -1,0 +1,177 @@
+diff --git a/src/components/ChatMarkdown.test.ts b/src/components/ChatMarkdown.test.ts
+index 3d7e2e544..0fe81e061 100644
+--- a/src/components/ChatMarkdown.test.ts
++++ b/src/components/ChatMarkdown.test.ts
+@@ -131,6 +131,19 @@ describe("math before katex loads", () => {
+   });
+ });
+ 
++describe("soft line breaks in the user's own markdown", () => {
++  it("resets white-space inside a markdown body so one newline stays one line", () => {
++    // A newline inside a paragraph renders as <br> followed by a literal "\n" in the
++    // HTML. The user bubble sets white-space: pre-wrap, which would paint that literal
++    // newline as a second, empty line; .chat-md must opt out so one Enter is one line.
++    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../styles.css"), "utf8");
++    const rule = css.match(/\.chat-md \{[^}]*white-space: normal;[^}]*\}/)?.[0];
++    expect(rule).toBeDefined();
++    const html = renderToStaticMarkup(createElement(ChatMarkdown, { text: "uno\ndos" }));
++    expect(html.match(/<br\/>/g)).toHaveLength(1);
++  });
++});
++
+ describe("math rendering", () => {
+   beforeAll(async () => {
+     await ensureChatKatex();
+diff --git a/src/components/ChatView.tsx b/src/components/ChatView.tsx
+index 13128bdf0..a37860a5c 100644
+--- a/src/components/ChatView.tsx
++++ b/src/components/ChatView.tsx
+@@ -824,7 +824,7 @@ const MessagesList = memo(function MessagesList({
+   );
+ });
+ 
+-const CHATHEAD_PILL = `flex h-9 min-w-0 items-center gap-2 rounded-full py-0.5 pl-3 text-ink ${ELEVATED_FLOAT}`;
++const CHATHEAD_PILL = `flex h-9 min-w-0 items-center gap-2 rounded-full py-0.5 pl-[18px] text-ink ${ELEVATED_FLOAT}`;
+ 
+ export function ChatView({ bot: profile }: { bot: Bot }) {
+   const bot = useMemo(() => currentTaskBot(profile), [profile]);
+diff --git a/src/components/Sidebar.header.test.ts b/src/components/Sidebar.header.test.ts
+index 5479ca24f..f38b44941 100644
+--- a/src/components/Sidebar.header.test.ts
++++ b/src/components/Sidebar.header.test.ts
+@@ -251,9 +251,9 @@ describe("sidebar top row", () => {
+     const row = topRow(html);
+     expect(row).not.toContain("data-workspace-switcher");
+     expect(row).not.toContain("data-sidebar-top-spacer");
+-    expect(classesOf(row, "data-sidebar-top-row")).toEqual(["flex", "items-center", "flex-col", "gap-[3.5px]", "px-2", "pt-3.5", "pb-1"]);
++    expect(classesOf(row, "data-sidebar-top-row")).toEqual(["flex", "items-center", "flex-col", "gap-[3px]", "px-2", "pt-[11px]", "pb-1"]);
+     expect(row).not.toContain("data-traffic-light-space");
+-    expect(classesOf(row, "data-sidebar-top-buttons")).toEqual(["relative", "flex", "shrink-0", "items-center", "flex-col", "gap-[3.5px]"]);
++    expect(classesOf(row, "data-sidebar-top-buttons")).toEqual(["relative", "flex", "shrink-0", "items-center", "flex-col", "gap-[3px]"]);
+     expect(html.match(/Switch server:/g)).toHaveLength(1);
+   });
+ });
+diff --git a/src/components/Sidebar.simple-layout.test.ts b/src/components/Sidebar.simple-layout.test.ts
+index bbe871d20..3b4b2f5b8 100644
+--- a/src/components/Sidebar.simple-layout.test.ts
++++ b/src/components/Sidebar.simple-layout.test.ts
+@@ -297,14 +297,14 @@ describe("Simple-mode sidebar layout", () => {
+     handle.onAvatars(true);
+     expect(fixture.storage.get(SIDEBAR_DENSITY_KEY)).toBe("avatars");
+     const { root, tree } = render();
+-    expect(root.props.className).toContain("w-[92px]");
++    expect(root.props.className).toContain("w-[72px]");
+     expect(sectionOrder(tree)).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
+     expect(listedBots(tree)).toEqual(["atlas", "bea", "dodo"]);
+     expect(headers(tree)).toEqual([]);
+     expect(tree.filter((node) => node.type === SidebarRailSeparator)).toHaveLength(2);
+     expect(tree.some((node) => node.type === SidebarSearchToggle)).toBe(false);
+     expect(edge(tree)?.avatars, "the rail keeps its edge, to drag it open again").toBe(true);
+-    expect(edge(tree)?.avatarsWidth).toBe(92);
++    expect(edge(tree)?.avatarsWidth).toBe(72);
+     expect(tree.some((node) => node.props["data-sidebar-top-buttons"] !== undefined)).toBe(false);
+   });
+ 
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index def007c1f..7a72d4b2b 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -1256,7 +1256,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+       className={cn(
+         "relative flex h-full shrink-0 flex-col border-r-[0.5px] border-edge bg-panel max-md:[--scroll-fade-surface:var(--color-app)]",
+         sizing.resizing && !sizing.snapping ? "transition-none" : "transition-[width] duration-200 motion-reduce:transition-none",
+-        density === "icons" ? rail ? "w-[92px]" : "w-[80px]" : advanced ? "w-[320px] md:w-[var(--sidebar-width)]" : "w-[280px] md:w-[var(--sidebar-width)]",
++        density === "icons" ? "w-[72px]" : advanced ? "w-[320px] md:w-[var(--sidebar-width)]" : "w-[280px] md:w-[var(--sidebar-width)]",
+         sidePanelOpen ? advanced ? "md:max-w-[320px]" : "md:max-w-[280px]" : "md:max-w-[calc(100vw-320px)]",
+         // max-md: rather than an md: cancel: Tailwind v4 emits the native `translate`, and any value but `none` makes
+         // this a containing block for its `fixed` descendants.
+@@ -1272,7 +1272,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+         className={cn(
+           "flex items-center",
+           // The corner is no drag region and takes no clicks but its buttons': the tiles rise into the rest of it.
+-          density === "icons" ? "flex-col gap-[3.5px] px-2 pt-3.5 pb-1" : corner ? "pointer-events-none relative h-[34px] items-start justify-end px-1.5 pt-1.5" : simpleDesk ? "relative h-[60px] items-start pl-4 pr-4 pt-3" : "relative pl-4 pr-2",
++          density === "icons" ? (rail ? "flex-col gap-[3.5px] px-2 pt-3.5 pb-1" : "flex-col gap-[3px] px-2 pt-[11px] pb-1") : corner ? "pointer-events-none relative h-[34px] items-start justify-end px-1.5 pt-1.5" : simpleDesk ? "relative h-[60px] items-start pl-4 pr-4 pt-3" : "relative pl-4 pr-2",
+           density !== "icons" && !simpleDesk && !lights && "h-12 max-md:h-16",
+         )}
+         style={corner ? undefined : density !== "icons" && lights && !simpleDesk ? { ...windowDragStyle, height: MAC_TRAFFIC_LIGHT_CENTER_Y * 2 } : windowDragStyle}
+@@ -1300,7 +1300,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+         ))}
+         {!rail && <div
+           data-sidebar-top-buttons
+-          className={cn("relative flex shrink-0 items-center", density === "icons" ? "flex-col gap-[3.5px]" : corner ? "pointer-events-auto" : simpleDesk ? "gap-2" : simple ? "gap-1 pl-0.5" : "ml-0.5 gap-0.5")}
++          className={cn("relative flex shrink-0 items-center", density === "icons" ? "flex-col gap-[3px]" : corner ? "pointer-events-auto" : simpleDesk ? "gap-2" : simple ? "gap-1 pl-0.5" : "ml-0.5 gap-0.5")}
+           style={windowNoDragStyle}
+         >
+           {simpleDesk && <SidebarSearchToggle ref={searchToggleRef} corner={corner} open={searchShown} onToggle={() => (searchShown ? closeSearch() : setSearchOpen(true))} />}
+@@ -1425,7 +1425,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+       {simpleDesk && !tiles && <SidebarNoBots />}
+       </GlassBar>
+ 
+-      {!collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={rail ? 92 : 80}
++      {!collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={72}
+         onAvatars={(avatars) => setSidebarDensity(avatars ? "icons" : "comfortable")} style={windowNoDragStyle} />}
+ 
+       <GlassScroller className={rail ? "[scrollbar-gutter:stable_both-edges]" : simpleDesk ? "px-3" : "px-2"}>
+diff --git a/src/components/SidebarFooter.tsx b/src/components/SidebarFooter.tsx
+index 7dcd3deff..147e24787 100644
+--- a/src/components/SidebarFooter.tsx
++++ b/src/components/SidebarFooter.tsx
+@@ -59,12 +59,12 @@ export function SidebarFooter({ density, simple = false, owner = null, archived,
+   const { dispatch } = useStore();
+   if (simple) return <SimpleSidebarFooter owner={owner} archived={archived} />;
+   return (
+-    <div className={cn("pb-3 pt-2", density === "icons" ? "flex flex-col items-center gap-[3.5px] px-2" : "px-3")}>
++    <div className={cn("pb-3 pt-2", density === "icons" ? "flex flex-col items-center gap-px px-2" : "px-3")}>
+       <SidebarFooterNav density={density} collapsed={toolsCollapsed} onToggleCollapsed={onToggleTools} />
+       {density === "icons" ? (
+         <>
+           <SidebarPhoneButton density={density} onOpen={() => dispatch(phoneSettingsAction())} />
+-          <div className="flex flex-col items-center justify-center gap-1">
++          <div className="flex flex-col items-center justify-center gap-[3px]">
+             <UpdateIndicator />
+             <SidebarProfileMenu iconOnly />
+           </div>
+diff --git a/src/components/SidebarFooterNav.test.ts b/src/components/SidebarFooterNav.test.ts
+index b9f7bd5a5..8a0a9c8df 100644
+--- a/src/components/SidebarFooterNav.test.ts
++++ b/src/components/SidebarFooterNav.test.ts
+@@ -293,7 +293,7 @@ describe("toolbar tools layout", () => {
+     fixture.advanced = true;
+     const rows = render("icons").html;
+     expect(render("icons", { toolsLayout: "toolbar" }).html).toBe(rows);
+-    expect(rows).toContain('class="flex flex-col items-center gap-1"');
++    expect(rows).toContain('class="flex flex-col items-center gap-px"');
+   });
+ 
+   it("rows layout renders exactly as before", () => {
+diff --git a/src/components/SidebarFooterNav.tsx b/src/components/SidebarFooterNav.tsx
+index 841cf7f41..227851298 100644
+--- a/src/components/SidebarFooterNav.tsx
++++ b/src/components/SidebarFooterNav.tsx
+@@ -195,7 +195,7 @@ export function SidebarFooterNav({
+   );
+ 
+   if (iconsOnly) {
+-    return <nav data-tour="tools" aria-label={t("sidebar.tools")} className="flex flex-col items-center gap-1">{rows}</nav>;
++    return <nav data-tour="tools" aria-label={t("sidebar.tools")} className="flex flex-col items-center gap-px">{rows}</nav>;
+   }
+   return (
+     <div data-tour="tools">
+diff --git a/src/styles.css b/src/styles.css
+index 874d203d5..6a95d16ad 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -1115,6 +1115,13 @@
+   line-height: 1.75;
+   font-family: "omb-chat", var(--font-sans);
+ }
++/* A markdown body makes its own line breaks (one per paragraph, plus an explicit <br>
++   for each newline inside a paragraph), so it must not inherit the user bubble's
++   white-space: pre-wrap: the renderer also emits a literal newline right after that
++   <br>, which pre-wrap would paint as a second, empty line. Plain text keeps it. */
++.chat-md {
++  white-space: normal;
++}
+ .chat-md :is(strong, b) {
+   font-weight: 600;
+ }

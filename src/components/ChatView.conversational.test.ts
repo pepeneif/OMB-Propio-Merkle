@@ -113,7 +113,7 @@ describe("conversational replies", () => {
     expect(items.slice(0, 2)).toEqual(["Reply", "Copy message"]);
   });
 
-  it("puts a formatted reply in the bot's bubble in Simple mode, and on the open page in Advanced", async () => {
+  it("puts a formatted reply in the bot's bubble in Simple mode, and in a card bubble on the open page in Advanced", async () => {
     const bubbleOf = () => document.querySelector("[data-mid='m2'] [data-chat-bubble]")!;
     await draw(profile({}));
     expect(bubbleOf().getAttribute("data-chat-bubble")).toBe("simple");
@@ -122,7 +122,7 @@ describe("conversational replies", () => {
     try {
       await draw(profile({}));
       expect(bubbleOf().getAttribute("data-chat-bubble")).toBe("");
-      expect(bubbleOf().classList).not.toContain("bg-card");
+      expect(bubbleOf().classList).toContain("bg-card");
       expect(bubbleOf().className).toContain("max-w-[min(var(--chat-prose-max),var(--chat-card-pct))]");
     } finally {
       setAdvancedMode(false);

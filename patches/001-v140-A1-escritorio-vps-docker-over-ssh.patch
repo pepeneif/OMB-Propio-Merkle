@@ -1,0 +1,17 @@
+diff --git a/Dockerfile b/Dockerfile
+index f429fbb56..e005e6ff9 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -65,8 +65,11 @@ FROM node:24-bookworm-slim AS runtime
+ # Install Chrome's Bookworm libraries directly: agent-browser --with-deps
+ # invokes sudo even as root, and this image deliberately does not ship sudo.
+ # git + curl: agent CLIs shell out to git; curl backs the healthcheck
++# openssh-client + docker.io: OMB reaches this VPS docker daemon over SSH
++# (Docker-over-SSH) to run each bot's desktop VM; without them the VPS
++# desktop cannot be created, updated or viewed. Restored in 140 (patch 001).
+ RUN apt-get update \
+-  && apt-get install -y --no-install-recommends ca-certificates curl git \
++  && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client docker.io \
+     libxcb-shm0 libx11-xcb1 libx11-6 libxcb1 libxext6 libxrandr2 \
+     libxcomposite1 libxcursor1 libxdamage1 libxfixes3 libxi6 libgtk-3-0 \
+     libpangocairo-1.0-0 libpango-1.0-0 libatk1.0-0 libcairo-gobject2 \

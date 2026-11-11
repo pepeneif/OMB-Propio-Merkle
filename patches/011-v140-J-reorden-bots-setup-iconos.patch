@@ -1,0 +1,313 @@
+diff --git a/src/components/Composer.tsx b/src/components/Composer.tsx
+index 3b993eae4..6ede717de 100644
+--- a/src/components/Composer.tsx
++++ b/src/components/Composer.tsx
+@@ -1,7 +1,7 @@
+ import { directMessageSent, roomMessageSent } from "@/lib/product-events";
+ import { useComposerDictation } from "@/lib/use-composer-dictation";
+ import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+-import { Mic, Paperclip, Square, X } from "lucide-react";
++import { BookOpen, Mic, Paperclip, Square, X } from "lucide-react";
+ import { useStore, visibleMessages, currentTaskBot, type Bot, type Group, type InstanceInfo, type Message } from "@/state/store";
+ import { cn } from "@/lib/cn";
+ import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
+@@ -299,6 +299,7 @@ export function Composer({
+   const slashSkills = useSlashSkills(group ? undefined : bot?.id, threadId, Boolean(slash) && slash?.start !== dismissedSlashAt);
+   const canLearn = skillAuthoringEnabled(state.config) &&
+     (group ? (members ?? []).some((member) => supportsAgents(state.instances, member)) : supportsAgents(state.instances, bot));
++  const canSetup = !group && Boolean(bot) && supportsAgents(state.instances, bot);
+   const commandCandidates = useMemo(() => {
+     if (!slash || slash.start === dismissedSlashAt) return [];
+     const available: ComposerSlashCommand[] = [];
+@@ -404,6 +405,13 @@ export function Composer({
+     setChannelMode("chat");
+     requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.setSelectionRange(learn.length, learn.length); });
+   };
++  const setupTask = () => {
++    const setup = "/setup ";
++    editText(setup + text.replace(/^\/setup\s*/, "").trimStart());
++    setCaret(setup.length);
++    setChannelMode("chat");
++    requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.setSelectionRange(setup.length, setup.length); });
++  };
+ 
+   const pendingCount = (state.pendingQueued[threadId] ?? []).length;
+   const queuedMessages = state.pendingQueued[threadId] ?? [];
+@@ -865,9 +873,20 @@ export function Composer({
+                     <GoalToggle {...goal} />
+                   </div>
+                 )}
+-                {advanced && approvalChoice && (
+-                  <div className="col-start-1 row-start-1">
+-                    <ApprovalModeSelector {...approvalChoice} />
++                {advanced && (approvalChoice || canSetup) && (
++                  <div className="col-start-1 row-start-1 flex items-center gap-1">
++                    {approvalChoice && <ApprovalModeSelector {...approvalChoice} />}
++                    {canSetup && (
++                      <button
++                        type="button"
++                        onClick={setupTask}
++                        aria-label={t("composer.setupTask")}
++                        title={t("composer.setupTask")}
++                        className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-control hover:text-ink"
++                      >
++                        <BookOpen size={16} strokeWidth={1.75} absoluteStrokeWidth />
++                      </button>
++                    )}
+                   </div>
+                 )}
+                 {modeBot && !remoteClient && advanced && (
+diff --git a/src/components/Sidebar.departments.test.ts b/src/components/Sidebar.departments.test.ts
+index 87e4f872d..22117a540 100644
+--- a/src/components/Sidebar.departments.test.ts
++++ b/src/components/Sidebar.departments.test.ts
+@@ -103,7 +103,7 @@ const at = (offset = 27) => ({
+ });
+ function drag(id: string) {
+   carried = transfer();
+-  row(id).botDrag!.row(id).onDragStart(at() as never);
++  row(id).botDrag!.handle(id).onDragStart(at() as never);
+ }
+ 
+ beforeEach(() => {
+@@ -146,7 +146,7 @@ describe("Simple's sidebar before anyone drags", () => {
+     for (const props of rows()) {
+       expect(props.botDrop).toBeNull();
+       expect(props.botDragging).toBe(false);
+-      expect(props.botDrag!.row(props.bot.id).draggable).toBe(true);
++      expect(props.botDrag!.handle(props.bot.id).draggable).toBe(true);
+     }
+     expect(headers().every((props) => !props.dropInto && !props.naming)).toBe(true);
+   });
+@@ -169,31 +169,22 @@ describe("dragging a bot", () => {
+     expect(rows().every((props) => !props.botDrop && !props.botDragging)).toBe(true);
+   });
+ 
+-  it("onto the middle of a bot puts both in a new department, named in place, and Enter keeps the name", () => {
++  it("drops on the lower half of a row to sit after it, reordering instead of starting a department", () => {
+     drag("cleo");
+     row("atlas").botDrag!.row("atlas").onDragOver(at() as never);
+-    expect(row("atlas").botDrop).toBe("group");
++    expect(row("atlas").botDrop).toBe("after");
+     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
+-    expect(actions()).toEqual([]);
+-    expect(sections()).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work"), userSectionId(NEW_DEPARTMENT)]);
+-    const naming = header(NEW_DEPARTMENT).naming!;
+-    expect(naming.value).toBe("New department");
+-    expect(naming.label).toBe("New department name");
+-    expect(listed()).toEqual(["bea", "dodo", "echo", "atlas", "cleo"]);
+-    naming.onCommit("  ");
+-    expect(actions()).toEqual([
+-      { type: "updateBot", botId: "atlas", patch: { section: "New department" } },
+-      { type: "updateBot", botId: "cleo", patch: { section: "New department" } },
+-    ]);
++    expect(actions()).toEqual([{ type: "botsOrdered", botIds: ["atlas", "cleo", "bea"] }]);
++    expect(sections()).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
+     expect(sections()).not.toContain(userSectionId(NEW_DEPARTMENT));
+   });
+ 
+-  it("gives a new department the first free name, and Escape puts the bots back", () => {
++  it("names a department started from a bot's menu, giving it the first free name, and Escape puts the bot back", () => {
+     fixture.state = { ...fixture.state, sections: ["Work", "New department"] };
+-    drag("cleo");
+-    row("bea").botDrag!.row("bea").onDrop(at() as never);
++    carried = transfer();
++    const menu = render().find((node) => node.type === BotContextMenu)!.props as unknown as { onNewSection: (botId: string) => void };
++    menu.onNewSection("cleo");
+     expect(header(NEW_DEPARTMENT).naming!.value).toBe("New department 2");
+-    drag("atlas");
+     const over = at();
+     section(userSectionId(NEW_DEPARTMENT)).onDragOver(over as never);
+     expect(over.preventDefault).not.toHaveBeenCalled();
+@@ -285,11 +276,11 @@ describe("dragging a bot", () => {
+     expect(actions()).toEqual([]);
+   });
+ 
+-  it("works the same in Advanced, where the bots' list has a heading", () => {
++  it("reorders the same in Advanced, where the bots' list has a heading", () => {
+     fixture.advanced = true;
+     drag("dodo");
+     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
+-    expect(header(NEW_DEPARTMENT).naming!.value).toBe("New department");
++    expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { section: "" } }, { type: "botsOrdered", botIds: ["atlas", "dodo", "bea", "cleo"] }]);
+   });
+ });
+ 
+@@ -300,7 +291,7 @@ describe("who may drag a bot: whoever the bot menu offers Move to department", (
+     expect(listed()).toEqual(["atlas", "bea", "cleo", "dodo", "echo"]);
+     expect(rows().map((props) => props.botDrag)).toEqual([undefined, undefined, undefined, undefined, undefined]);
+     carried = transfer();
+-    drawnEarlier.row("atlas").onDragStart(at() as never);
++    drawnEarlier.handle("atlas").onDragStart(at() as never);
+     drawnEarlier.step("atlas", 1);
+     expect(carried.types).toEqual([]);
+     expect(actions()).toEqual([]);
+@@ -317,7 +308,7 @@ describe("who may drag a bot: whoever the bot menu offers Move to department", (
+ 
+   it("lets an admin drag", () => {
+     fixture.admin = true;
+-    for (const props of rows()) expect(props.botDrag!.row(props.bot.id).draggable).toBe(true);
++    for (const props of rows()) expect(props.botDrag!.handle(props.bot.id).draggable).toBe(true);
+     drag("atlas");
+     section(userSectionId("Work")).onDrop(at() as never);
+     expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { section: "Work" } }, { type: "botsOrdered", botIds: ["dodo", "echo", "atlas"] }]);
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index 2f71b5a84..2687fe056 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -1,7 +1,7 @@
+ import { OrganizationIdentity } from "./OrganizationIdentity";
+ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
+ import { createPortal } from "react-dom";
+-import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Search, TextQuote, Trash2, Users, X } from "lucide-react";
++import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, GripVertical, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Search, TextQuote, Trash2, Users, X } from "lucide-react";
+ import { api, useStore, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
+ import { approvalModeFor } from "../../shared/approval-mode";
+ import { liveActivityLabel } from "@/lib/live-activity";
+@@ -853,7 +853,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
+ 
+   return (
+     <>
+-    <div className={cn("group relative", railTile && "mx-auto w-[54px]", botRowDropClass(drop, dragging))} data-bot-drop={drop ?? undefined} {...(drag && !renaming ? drag.row(bot.id) : {})}
++    <div className={cn("group relative", railTile && "mx-auto w-[54px]", botRowDropClass(drop, dragging))} data-bot-drop={drop ?? undefined} {...(drag && !renaming ? drag.row(bot.id) : {})} {...(drag && !renaming && iconOnly ? drag.handle(bot.id) : {})}
+       title={railTile ? botTooltip(bot, instances) : iconOnly ? [bot.name, bot.title?.trim()].filter(Boolean).join(" · ") : undefined}><BotDropLine place={drop} />
+       {/* Keep this wrapper mounted: replacing it remounts RenameTitle and leaves the row stuck in rename mode. */}
+       <div
+@@ -894,6 +894,15 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
+       {!renaming && iconOnly && unread && (
+         <span className={cn("pointer-events-none absolute size-2 rounded-full border border-panel bg-accent", railTile ? "right-1 top-1" : "bottom-1.5 right-1.5")} />
+       )}
++      {drag && !renaming && !deleting && !iconOnly && (
++        // The grip is the row's drag source (the v130 gesture): a drag it starts reorders the bot among its list.
++        // In the icons-only rail the whole tile is the drag source instead, so no grip is drawn there.
++        <span data-bot-drag-handle={bot.id} {...drag.handle(bot.id)} aria-hidden="true" title={t("sidebar.section.dragToReorder")}
++          className={cn("absolute top-1/2 z-10 flex size-5 -translate-y-1/2 cursor-grab items-center justify-center rounded text-ink-secondary opacity-0 hover:bg-raised hover:text-ink group-hover:opacity-100 group-focus-within:opacity-100 active:cursor-grabbing",
++            showThreads ? "right-[6.25rem]" : "right-9")}>
++          <GripVertical size={13} />
++        </span>
++      )}
+       {!renaming && !deleting && !iconOnly && <>
+         {showThreads && <button type="button" aria-label={t("task.newShort")} title={t("task.newShort")} onClick={() => { setThreadsOpen(true); dispatch({ type: "newTask", botId: bot.id }); }}
+           className="pointer-events-none absolute right-[3.75rem] top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded text-ink-secondary opacity-0 hover:bg-raised hover:text-ink group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 max-md:hidden touch:pointer-events-auto touch:opacity-70"><Plus size={14} /></button>}
+diff --git a/src/components/SidebarBotDrag.tsx b/src/components/SidebarBotDrag.tsx
+index 601838eaa..7fb526260 100644
+--- a/src/components/SidebarBotDrag.tsx
++++ b/src/components/SidebarBotDrag.tsx
+@@ -13,7 +13,8 @@ export const NEW_DEPARTMENT = "\u0000new";
+ type DropHandlers = { onDragOver: (event: DragEvent<HTMLElement>) => void; onDrop: (event: DragEvent<HTMLElement>) => void };
+ 
+ export type BotRowDrag = {
+-  row(botId: string): DropHandlers & { draggable: true; onDragStart: (event: DragEvent<HTMLElement>) => void; onDragEnd: () => void };
++  row(botId: string): DropHandlers;
++  handle(botId: string): { draggable: true; onDragStart: (event: DragEvent<HTMLElement>) => void; onDragEnd: () => void };
+   step(botId: string, direction: -1 | 1): void;
+ };
+ 
+@@ -84,21 +85,11 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
+   };
+   const rowDrop = (event: DragEvent<HTMLElement>, botId: string): BotDrop => {
+     const box = event.currentTarget.getBoundingClientRect();
+-    return { kind: "row", botId, place: botDropPlace(event.clientY - box.top, box.height, botListOf(latest.current.lists, botId) === "") };
++    return { kind: "row", botId, place: botDropPlace(event.clientY - box.top, box.height) };
+   };
+ 
+   controller.current ??= {
+     row: (botId) => ({
+-      draggable: true,
+-      onDragStart: (event) => {
+-        if (!latest.current.enabled || botListOf(latest.current.lists, botId) === undefined) return;
+-        event.stopPropagation();
+-        event.dataTransfer.effectAllowed = "move";
+-        event.dataTransfer.setData(BOT_ROW_DRAG_TYPE, botId);
+-        moving.current = { botId, drop: null };
+-        setDragging(botId);
+-      },
+-      onDragEnd: end,
+       onDragOver: (event) => {
+         if (!carries(event) || !moving.current.botId) return;
+         event.preventDefault();
+@@ -113,6 +104,18 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
+         finish(botId === moving.current.botId ? null : rowDrop(event, botId));
+       },
+     }),
++    handle: (botId) => ({
++      draggable: true,
++      onDragStart: (event) => {
++        if (!latest.current.enabled || botListOf(latest.current.lists, botId) === undefined) return;
++        event.stopPropagation();
++        event.dataTransfer.effectAllowed = "move";
++        event.dataTransfer.setData(BOT_ROW_DRAG_TYPE, botId);
++        moving.current = { botId, drop: null };
++        setDragging(botId);
++      },
++      onDragEnd: end,
++    }),
+     step: (botId, direction) => {
+       const move = latest.current.enabled ? stepBot(latest.current.lists, botId, direction) : null;
+       if (move) apply(botId, move, true);
+diff --git a/src/components/SlashCommandMenu.tsx b/src/components/SlashCommandMenu.tsx
+index 9433b576a..1c7c3fcdb 100644
+--- a/src/components/SlashCommandMenu.tsx
++++ b/src/components/SlashCommandMenu.tsx
+@@ -1,5 +1,5 @@
+ import type { RefObject } from "react";
+-import { BookOpen, Sparkles, Target } from "lucide-react";
++import { BookOpen, GraduationCap, Sparkles, Target } from "lucide-react";
+ import { cn } from "@/lib/cn";
+ import { t } from "@/lib/i18n";
+ import type { ComposerSlashCommand } from "@/lib/composer-commands";
+@@ -45,6 +45,8 @@ export function SlashCommandMenu({ listRef, motion, commands, highlight, onPick,
+               <Sparkles size={15} aria-hidden="true" />
+             ) : command.id === "goal" ? (
+               <Target size={15} aria-hidden="true" />
++            ) : command.id === "learn" ? (
++              <GraduationCap size={15} aria-hidden="true" />
+             ) : (
+               <BookOpen size={15} aria-hidden="true" />
+             )}
+diff --git a/src/lib/sidebar-bot-drop.test.ts b/src/lib/sidebar-bot-drop.test.ts
+index cf670dd4b..43aeb6250 100644
+--- a/src/lib/sidebar-bot-drop.test.ts
++++ b/src/lib/sidebar-bot-drop.test.ts
+@@ -9,9 +9,9 @@ const lists: BotLists = new Map([
+ ]);
+ 
+ describe("where a dragged bot lands", () => {
+-  it("starts a department from the middle half of a row that is in none, and places it above or below otherwise", () => {
+-    expect([0, 13, 14, 27, 40, 41, 54].map((offset) => botDropPlace(offset, 54, true))).toEqual(["before", "before", "group", "group", "group", "after", "after"]);
+-    expect([0, 26, 27, 54].map((offset) => botDropPlace(offset, 54, false))).toEqual(["before", "before", "after", "after"]);
++  it("places the bot above or below the row under the pointer, by which half it is in", () => {
++    expect([0, 13, 26, 27, 40, 54].map((offset) => botDropPlace(offset, 54))).toEqual(["before", "before", "before", "after", "after", "after"]);
++    expect(botDropPlace(27, 0)).toBe("after");
+   });
+ 
+   it("reorders within the list, in either direction, and a drop that changes nothing does nothing", () => {
+diff --git a/src/lib/sidebar-bot-drop.ts b/src/lib/sidebar-bot-drop.ts
+index 1082ee5e1..606a220cd 100644
+--- a/src/lib/sidebar-bot-drop.ts
++++ b/src/lib/sidebar-bot-drop.ts
+@@ -17,10 +17,9 @@ export type BotMove =
+   /** The first bot stays where the second was dropped on it; both start a department. */
+   | { kind: "group"; botIds: [string, string] };
+ 
+-/** The middle half of a row starts a department with it, where `canGroup`; the rest places the bot above or below. */
+-export function botDropPlace(offset: number, height: number, canGroup: boolean): BotDropPlace {
++/** Above or below the row under the pointer, by which half it is in. A drag only reorders; a bot's menu starts a department. */
++export function botDropPlace(offset: number, height: number): BotDropPlace {
+   const fraction = height > 0 ? offset / height : 0.5;
+-  if (canGroup && fraction > 0.25 && fraction < 0.75) return "group";
+   return fraction < 0.5 ? "before" : "after";
+ }
+ 
+diff --git a/src/locales/en.json b/src/locales/en.json
+index f9356fdac..6aa8c7b92 100644
+--- a/src/locales/en.json
++++ b/src/locales/en.json
+@@ -2636,6 +2636,7 @@
+   "composer.attach": "Attach a file",
+   "composer.attachFiles": "Attach files",
+   "composer.teachTask": "Teach a task",
++  "composer.setupTask": "Set up this bot",
+   "composer.goal.aria": "Finish together",
+   "composer.goal.title": "Finish together: the team keeps working until the goal is complete",
+   "composer.goal.soloAria": "Work until done",

@@ -1,0 +1,470 @@
+diff --git a/src/components/BubbleResizeHandle.tsx b/src/components/BubbleResizeHandle.tsx
+new file mode 100644
+index 000000000..9bebb5572
+--- /dev/null
++++ b/src/components/BubbleResizeHandle.tsx
+@@ -0,0 +1,93 @@
++import { useEffect, useRef, useState } from "react";
++
++import {
++  BUBBLE_DEFAULT_PX,
++  BUBBLE_EDGE,
++  BUBBLE_MAX_PX,
++  BUBBLE_MIN_PX,
++  applyBubbleWidth,
++  clampBubbleWidth,
++  loadBubbleWidth,
++  saveBubbleWidth,
++  type BubbleKind,
++} from "@/lib/bubble-width";
++
++/** Doble clic en el mango devuelve el ancho por defecto (pedido de Jose: un
++ * reset claro). El ancho vive por dispositivo (localStorage) y se aplica como
++ * variable CSS en :root, compartida por todas las burbujas de ese tipo. */
++export function BubbleResizeHandle({ kind, className }: { kind: BubbleKind; className?: string }) {
++  const [dragging, setDragging] = useState(false);
++  const current = useRef<number | null>(loadBubbleWidth(kind));
++  const edge = BUBBLE_EDGE[kind];
++
++  useEffect(() => {
++    if (!dragging) current.current = loadBubbleWidth(kind);
++  }, [dragging, kind]);
++
++  const commit = (px: number | null) => {
++    current.current = px;
++    saveBubbleWidth(kind, px);
++    applyBubbleWidth(kind, px);
++  };
++
++  // Medimos contra el contenedor: el ancho util de la burbuja es la distancia
++  // del puntero al borde opuesto del padre (el extremo fijo por el que se ancla).
++  const widthFromPointer = (handle: HTMLElement, clientX: number): number | null => {
++    const parent = handle.parentElement;
++    if (!parent) return null;
++    const rect = parent.getBoundingClientRect();
++    return edge === "right" ? clientX - rect.left : rect.right - clientX;
++  };
++
++  return (
++    <div
++      role="separator"
++      aria-label="Ajustar ancho (arrastra; doble clic para restablecer)"
++      aria-orientation="vertical"
++      aria-valuemin={BUBBLE_MIN_PX}
++      aria-valuemax={BUBBLE_MAX_PX[kind]}
++      aria-valuenow={clampBubbleWidth(kind, current.current ?? BUBBLE_DEFAULT_PX[kind])}
++      tabIndex={0}
++      data-bubble-resize={kind}
++      onPointerDown={(event) => {
++        if (event.button !== 0) return;
++        event.preventDefault();
++        event.stopPropagation();
++        event.currentTarget.setPointerCapture(event.pointerId);
++        setDragging(true);
++      }}
++      onPointerMove={(event) => {
++        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
++        const next = widthFromPointer(event.currentTarget, event.clientX);
++        if (next === null) return;
++        const clamped = clampBubbleWidth(kind, next);
++        current.current = clamped;
++        event.currentTarget.setAttribute("aria-valuenow", String(clamped));
++        applyBubbleWidth(kind, clamped);
++      }}
++      onPointerUp={(event) => {
++        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
++        setDragging(false);
++        commit(current.current);
++      }}
++      onPointerCancel={() => {
++        setDragging(false);
++        commit(current.current);
++      }}
++      onDoubleClick={(event) => {
++        event.preventDefault();
++        event.stopPropagation();
++        commit(null);
++      }}
++      onKeyDown={(event) => {
++        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
++        event.preventDefault();
++        const base = current.current ?? loadBubbleWidth(kind) ?? BUBBLE_DEFAULT_PX[kind];
++        // Flecha hacia "ensanchar" segun el borde libre de cada tipo.
++        const grow = (event.key === "ArrowRight" && edge === "right") || (event.key === "ArrowLeft" && edge === "left");
++        commit(clampBubbleWidth(kind, base + (grow ? 24 : -24)));
++      }}
++      className={className}
++    />
++  );
++}
+diff --git a/src/components/ChatView.tsx b/src/components/ChatView.tsx
+index 9a0bcd206..fe2fca918 100644
+--- a/src/components/ChatView.tsx
++++ b/src/components/ChatView.tsx
+@@ -68,6 +68,7 @@ import { ThreadChip } from "./ThreadChip";
+ import { HandoffChip } from "./HandoffReply"; import { TeammateChip } from "./TeammateChip"; import { useTeammates } from "@/state/team-people"; import type { MentionPeer } from "@/lib/mentions";
+ import { NewConversationInstead } from "./NewConversationInstead";
+ import { VerifyCard } from "./VerifyCard";
++import { BubbleResizeHandle } from "./BubbleResizeHandle";
+ import { askText, runSkill, runSteps, runSummary, showRun, skillPrompt } from "@/lib/verify-steps";
+ import { useShowRunCard } from "@/lib/run-card-preferences";
+ import { useColorUserBubbles } from "@/lib/user-bubble-preference";
+@@ -465,6 +466,8 @@ const Bubble = memo(function Bubble({
+           className={cn(
+             tabled ? "w-full" : "w-fit",
+             simple ? !tabled && SIMPLE_BUBBLE_MAX : "max-w-[min(var(--chat-bubble-max),var(--chat-bubble-pct))] rounded-2xl text-[15px] leading-relaxed",
++            !simple && "bbl",
++            !simple && (user ? "bbl-user" : "bbl-bot"),
+             emerging && "turn-answer",
+             user && webhookView
+               ? cn("overflow-hidden border border-accent/25 bg-card text-ink", simple ? cn("rounded-[18px]", SIMPLE_BUBBLE_TEXT) : "shadow-[0_10px_30px_rgba(0,0,0,0.18)]")
+@@ -482,6 +485,7 @@ const Bubble = memo(function Bubble({
+           style={user && !webhookView && !attachmentsOnly ? { ...ownBubbleStyle, ...(tinted ? { borderColor: tintBorderColor } : {}) } : (isFinalBotBubble ? { borderColor: tintBorderColor } : undefined)}
+           title={workedFor === undefined ? new Date(message.at).toLocaleString() : `${workedLabel(workedFor)} · ${new Date(message.at).toLocaleString()}`}
+         >
++          {!webhookView && <BubbleResizeHandle kind={user ? "user" : "bot"} className="bbl-handle" />}
+           {replyTarget && (
+             <div className="mb-2">
+               <ReplyQuote
+diff --git a/src/components/ChromeRailToggle.tsx b/src/components/ChromeRailToggle.tsx
+index 2cc19a005..a54a70cee 100644
+--- a/src/components/ChromeRailToggle.tsx
++++ b/src/components/ChromeRailToggle.tsx
+@@ -26,7 +26,7 @@ export function ChromeRailToggle({ advanced = false, icons = false, bar, style }
+   return <button type="button" data-rail-toggle aria-label={label} title={label} aria-expanded={!rail.hidden} style={style}
+     onClick={() => setChromeRailHidden(!rail.hidden)}
+     className={bar ?? (advanced ? cn("flex shrink-0 items-center justify-center text-ink-secondary transition-colors hover:bg-ink/[0.06] hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+-      icons ? "size-[46px] rounded-xl" : "size-8 rounded-full") : SIMPLE_TOP_TOGGLE)}>
++      icons ? "size-8 rounded-md" : "size-8 rounded-full") : SIMPLE_TOP_TOGGLE)}>
+     <RailStripIcon size={bar ? 15 : advanced && icons ? 20 : 18} />
+   </button>;
+ }
+diff --git a/src/components/Sidebar.header.test.ts b/src/components/Sidebar.header.test.ts
+index c7eb58875..4b223cf12 100644
+--- a/src/components/Sidebar.header.test.ts
++++ b/src/components/Sidebar.header.test.ts
+@@ -304,7 +304,7 @@ describe("the button that hides and shows the window's rail of places", () => {
+     const column = render();
+     expect(column.indexOf("data-rail-toggle")).toBeGreaterThan(-1);
+     expect(column.indexOf("data-rail-toggle")).toBeLessThan(column.indexOf("data-sidebar-top-buttons"));
+-    expect(toggle(column)).toMatch(/class="[^"]*\bsize-\[46px\][^"]*\brounded-xl\b/);
++    expect(toggle(column)).toMatch(/class="[^"]*\bsize-8\b[^"]*\brounded-md\b/);
+     fixture.advanced = false;
+     const rail = render();
+     expect(rail.indexOf("data-rail-toggle")).toBeLessThan(rail.indexOf("data-sidebar-rail-top"));
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index b5f8938c6..2f71b5a84 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -1160,7 +1160,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+       aria-label={remoteClient ? t("sidebar.new") : t("sidebar.newOrShare")}
+       className={phone ? PHONE_TOP_BUTTON : corner ? SIMPLE_CORNER_BUTTON : rail || simple ? SIMPLE_TOP_BUTTON : cn(
+         "flex items-center justify-center text-ink-secondary transition-colors hover:bg-ink/[0.06] hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+-        density === "icons" ? "size-[46px] shrink-0 rounded-xl" : "size-8 rounded-full",
++        density === "icons" ? "size-8 shrink-0 rounded-md" : "size-8 rounded-full",
+       )}
+       title={remoteClient ? t("sidebar.new") : t("sidebar.newOrShare")}
+     >
+@@ -1309,7 +1309,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+             onClick={openCommandPalette}
+             aria-label={t("sidebar.searchAria")}
+             title={t("sidebar.searchAria")}
+-            className="flex size-[46px] shrink-0 items-center justify-center rounded-xl text-ink-secondary hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
++            className="flex size-8 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+           >
+             <Search size={20} strokeWidth={1.5} />
+           </button>}
+@@ -1321,7 +1321,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+               title={attentionTriggerLabel(attention.length)}
+               className={cn(
+                 "relative flex items-center justify-center text-ink-secondary transition-colors hover:bg-ink/[0.06] hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+-                density === "icons" ? "size-[46px] shrink-0 rounded-xl" : phone ? "size-10 shrink-0 rounded-full border border-hairline bg-card text-ink" : "size-8 rounded-full",
++                density === "icons" ? "size-8 shrink-0 rounded-md" : phone ? "size-10 shrink-0 rounded-full border border-hairline bg-card text-ink" : "size-8 rounded-full",
+               )}
+             >
+               <Activity size={density === "icons" ? 20 : 18} strokeWidth={1.5} />
+diff --git a/src/components/SidebarFooter.tsx b/src/components/SidebarFooter.tsx
+index 82e40fbbc..4f3fa720f 100644
+--- a/src/components/SidebarFooter.tsx
++++ b/src/components/SidebarFooter.tsx
+@@ -64,7 +64,7 @@ export function SidebarFooter({ density, simple = false, owner = null, archived,
+       {density === "icons" ? (
+         <>
+           <SidebarPhoneButton density={density} onOpen={() => dispatch(phoneSettingsAction())} />
+-          <div className="flex flex-col items-center justify-center gap-[3px]">
++          <div className="flex flex-col items-center justify-center gap-[2px]">
+             <UpdateIndicator />
+             <SidebarProfileMenu iconOnly />
+           </div>
+diff --git a/src/components/SidebarFooterNav.tsx b/src/components/SidebarFooterNav.tsx
+index e104ed8fe..b66814945 100644
+--- a/src/components/SidebarFooterNav.tsx
++++ b/src/components/SidebarFooterNav.tsx
+@@ -47,7 +47,7 @@ function NavRow({
+       aria-current={active ? "page" : undefined}
+       className={cn(
+         "relative flex items-center rounded-xl transition-colors",
+-        rail ? "size-9 shrink-0 justify-center" : iconsOnly ? "mx-auto size-[46px] shrink-0 justify-center" : "w-full min-h-9 gap-3 px-3 py-1.5 text-left",
++        rail ? "size-9 shrink-0 justify-center" : iconsOnly ? "mx-auto size-10 shrink-0 justify-center" : "w-full min-h-9 gap-3 px-3 py-1.5 text-left",
+         active ? "bg-raised text-ink" : "text-ink hover:bg-raised/50",
+       )}
+     >
+diff --git a/src/components/SidebarPhoneButton.tsx b/src/components/SidebarPhoneButton.tsx
+index 4699c1277..a05bc0532 100644
+--- a/src/components/SidebarPhoneButton.tsx
++++ b/src/components/SidebarPhoneButton.tsx
+@@ -166,7 +166,7 @@ export function SidebarPhoneStatusButton({
+       data-phone-status={status.kind}
+       data-sidebar-density={density}
+       className={cn(
+-        "relative flex size-[46px] shrink-0 items-center justify-center rounded-xl hover:bg-raised",
++        "relative flex size-10 shrink-0 items-center justify-center rounded-xl hover:bg-raised",
+         density === "icons" && "mx-auto",
+         connected ? "text-success" : "text-ink-secondary hover:text-ink",
+       )}
+diff --git a/src/components/SidebarProfileMenu.tsx b/src/components/SidebarProfileMenu.tsx
+index 93a2dc4ef..be00f8cc9 100644
+--- a/src/components/SidebarProfileMenu.tsx
++++ b/src/components/SidebarProfileMenu.tsx
+@@ -660,7 +660,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
+             ref={triggerRef}
+             className={cn(
+               "relative flex items-center justify-center rounded-xl transition-colors",
+-              rail ? "size-10" : "size-[46px]",
++              rail ? "size-10" : "size-11",
+               circle && "size-10 rounded-full border border-hairline bg-card",
+               open ? "bg-raised" : "hover:bg-raised/50",
+             )}
+diff --git a/src/components/UpdateIndicator.tsx b/src/components/UpdateIndicator.tsx
+index cb8acf331..975d7c091 100644
+--- a/src/components/UpdateIndicator.tsx
++++ b/src/components/UpdateIndicator.tsx
+@@ -62,7 +62,7 @@ export function UpdateIndicator({ className, bar }: { className?: string; bar?:
+   );
+   return (
+     <div
+-      className={cn("flex size-[46px] shrink-0 items-center justify-center", className)}
++      className={cn("flex size-10 shrink-0 items-center justify-center", className)}
+     >
+       <button
+         ref={buttonRef}
+diff --git a/src/components/VerifyCard.test.ts b/src/components/VerifyCard.test.ts
+index edb440953..f4c603845 100644
+--- a/src/components/VerifyCard.test.ts
++++ b/src/components/VerifyCard.test.ts
+@@ -24,7 +24,7 @@ describe("VerifyCard", () => {
+   it("lists each step with its label, full command and status, tagging the verified ones, behind labelled controls", () => {
+     const markup = render();
+     expect(markup).toContain(`aria-label="${t("chat.verify.aria")}"`);
+-    expect(markup).toContain('class="pointer-events-auto ');
++    expect(markup).toContain('class="bbl bbl-run pointer-events-auto ');
+     expect(markup).toContain(`>${t("chat.verify.title")}<`);
+     expect(markup).toContain("3 steps · 2 verified · 1 failed · 1 running");
+     expect(markup).toContain(">doctor<");
+diff --git a/src/components/VerifyCard.tsx b/src/components/VerifyCard.tsx
+index d5b54608e..3184b3e69 100644
+--- a/src/components/VerifyCard.tsx
++++ b/src/components/VerifyCard.tsx
+@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
+ import { t } from "@/lib/i18n";
+ import { runSummary, type RunSkill, type RunStep } from "@/lib/verify-steps";
+ import { runCardCollapsed, setRunCardCollapsed } from "@/lib/run-open-state";
++import { BubbleResizeHandle } from "./BubbleResizeHandle";
+ 
+ function StatusIcon({ status }: { status: RunStep["status"] }) {
+   const className = "size-4 shrink-0";
+@@ -53,7 +54,7 @@ export function VerifyCard({
+   return (
+     <section
+       aria-label={t("chat.verify.aria")}
+-      className="pointer-events-auto w-[22rem] max-w-full rounded-2xl border border-hairline/40 bg-raised/95 text-ink shadow-lg backdrop-blur-sm"
++      className="bbl bbl-run pointer-events-auto max-w-full rounded-2xl border border-hairline/40 bg-raised/95 text-ink shadow-lg backdrop-blur-sm"
+     >
+       <div className="flex items-center gap-2 px-3 py-2">
+         <ListChecks size={14} className="shrink-0 text-accent" aria-hidden="true" />
+@@ -116,6 +117,7 @@ export function VerifyCard({
+           )}
+         </>
+       )}
++      <BubbleResizeHandle kind="run" className="bbl-handle" />
+     </section>
+   );
+ }
+diff --git a/src/lib/bubble-width.ts b/src/lib/bubble-width.ts
+new file mode 100644
+index 000000000..9a2952204
+--- /dev/null
++++ b/src/lib/bubble-width.ts
+@@ -0,0 +1,95 @@
++// Personalizacion Manager: ancho de las burbujas ajustable por el usuario.
++//
++// Cada categoria tiene su propia variable CSS y su propio ancho persistido por
++// dispositivo (localStorage), igual que la barra lateral. El ancho se aplica
++// como max-width de la burbuja; el mango de arrastre vive en el borde libre
++// (derecha en las del bot, izquierda en las del usuario y en "This run").
++
++export type BubbleKind = "bot" | "user" | "run";
++
++export const BUBBLE_CSS_VAR: Record<BubbleKind, string> = {
++  bot: "--bubble-bot",
++  user: "--bubble-user",
++  run: "--bubble-run",
++};
++
++export const BUBBLE_DEFAULT_PX: Record<BubbleKind, number> = {
++  bot: 900,
++  user: 900,
++  // v140: el cuadro "This run" nace en 22rem (352px), su ancho de la hoja de estilos.
++  run: 352,
++};
++
++export const BUBBLE_MIN_PX = 320;
++// Personalizacion Manager (2026-10-14): tope de arrastre mas alto, y aun mas
++// para la tarjeta "This run". El limite efectivo en pantalla sigue siendo el
++// porcentaje de styles.css (90% general, 95% para "This run").
++export const BUBBLE_MAX_PX: Record<BubbleKind, number> = {
++  bot: 1800,
++  user: 1800,
++  run: 2200,
++};
++
++const STORAGE_KEY: Record<BubbleKind, string> = {
++  bot: "omb-bubble-width-bot",
++  user: "omb-bubble-width-user",
++  run: "omb-bubble-width-run",
++};
++
++/** Borde libre de cada burbuja: el del bot es el derecho; los otros, el izquierdo. */
++export const BUBBLE_EDGE: Record<BubbleKind, "left" | "right"> = {
++  bot: "right",
++  user: "left",
++  run: "left",
++};
++
++function storage(): Storage | undefined {
++  try {
++    return globalThis.localStorage;
++  } catch {
++    return undefined;
++  }
++}
++
++export function clampBubbleWidth(kind: BubbleKind, px: number): number {
++  if (!Number.isFinite(px)) return BUBBLE_DEFAULT_PX[kind];
++  return Math.max(BUBBLE_MIN_PX, Math.min(BUBBLE_MAX_PX[kind], Math.round(px)));
++}
++
++/** Ancho guardado, o null si el usuario nunca lo ajusto (usa el default). */
++export function loadBubbleWidth(kind: BubbleKind): number | null {
++  try {
++    const raw = storage()?.getItem(STORAGE_KEY[kind]);
++    if (raw == null) return null;
++    const n = Number(raw);
++    return Number.isFinite(n) ? clampBubbleWidth(kind, n) : null;
++  } catch {
++    return null;
++  }
++}
++
++export function saveBubbleWidth(kind: BubbleKind, px: number | null): void {
++  try {
++    if (px == null) storage()?.removeItem(STORAGE_KEY[kind]);
++    else storage()?.setItem(STORAGE_KEY[kind], String(clampBubbleWidth(kind, px)));
++  } catch {
++    // storage bloqueado: el ancho vale para esta sesion, no persiste.
++  }
++}
++
++/** Escribe la variable CSS; con null vuelve al default de la hoja de estilos. */
++export function applyBubbleWidth(kind: BubbleKind, px: number | null): void {
++  try {
++    const root = globalThis.document?.documentElement;
++    if (!root) return;
++    if (px == null) root.style.removeProperty(BUBBLE_CSS_VAR[kind]);
++    else root.style.setProperty(BUBBLE_CSS_VAR[kind], `${clampBubbleWidth(kind, px)}px`);
++  } catch {
++    // sin DOM (SSR/tests): nada que aplicar.
++  }
++}
++
++/** Aplica lo guardado al arrancar; se llama una vez desde el modulo de chat. */
++export function applyStoredBubbleWidths(): void {
++  (Object.keys(BUBBLE_CSS_VAR) as BubbleKind[]).forEach((kind) => applyBubbleWidth(kind, loadBubbleWidth(kind)));
++}
+diff --git a/src/main.tsx b/src/main.tsx
+index 2bc22a4f9..228cbc1dc 100644
+--- a/src/main.tsx
++++ b/src/main.tsx
+@@ -7,6 +7,7 @@ import { bootstrapBrand, productName } from "./lib/brand";
+ import { loadPageLanguage } from "./lib/language-preference";
+ import { applySkinChoice, readSkinChoice } from "./lib/skins";
+ import { applyChatWidth, readChatWidth } from "./lib/chat-width";
++import { applyStoredBubbleWidths } from "./lib/bubble-width";
+ import { applyFont, readFont } from "./lib/fonts";
+ import { settleAdvancedModeDefault } from "./lib/interface-mode";
+ import { BrowserSignInPage } from "./pair/BrowserSignInPage";
+@@ -21,6 +22,7 @@ settleAdvancedModeDefault();
+ applySkinChoice(readSkinChoice());
+ applyFont(readFont());
+ applyChatWidth(readChatWidth());
++applyStoredBubbleWidths();
+ 
+ // The app is its own chunk, so these pages don't parse it. Everywhere else its fetch starts now, alongside the session
+ // read, instead of after it. A failed fetch renders as a throw, so PageBoundary offers a reload.
+diff --git a/src/styles.css b/src/styles.css
+index 6a95d16ad..bcf4f7f23 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -1125,6 +1125,52 @@
+ .chat-md :is(strong, b) {
+   font-weight: 600;
+ }
++
++/* ────────────────────────────────────────────────────────────────────────
++   PERSONALIZACION MANAGER (0010, portada a la 140) — ancho de burbujas
++   ajustable por el usuario. Cada burbuja toma su max-width de una variable en
++   :root; el mango de arrastre vive en el borde libre (derecha en las del bot,
++   izquierda en las del usuario y en "This run"). Sin arrastrar, manda el valor
++   por defecto de la hoja.
++   ──────────────────────────────────────────────────────────────────────── */
++.bbl {
++  position: relative;
++}
++.bbl-bot {
++  max-width: min(var(--bubble-bot, var(--chat-bubble-max)), var(--chat-bubble-pct));
++}
++.bbl-user {
++  max-width: min(var(--bubble-user, var(--chat-bubble-max)), var(--chat-bubble-pct));
++}
++.bbl-run {
++  width: min(var(--bubble-run, 22rem), var(--chat-card-pct));
++  max-width: var(--chat-card-pct);
++}
++/* El mango solo existe en escritorio: en tactil no hay hover y chocaria con el
++   scroll y la seleccion de texto. Delgado, mas transparente y con un margen
++   arriba/abajo para no tocar la curvatura de la esquina de la burbuja. */
++.bbl-handle {
++  position: absolute;
++  top: 8px;
++  bottom: 8px;
++  width: 4px;
++  cursor: col-resize;
++  touch-action: none;
++  opacity: 0;
++  border-radius: 9999px;
++  transition: opacity 120ms ease, background-color 120ms ease;
++}
++.bbl-bot > .bbl-handle { right: -7px; }
++.bbl-user > .bbl-handle { left: -7px; }
++.bbl-run > .bbl-handle { left: -7px; }
++.bbl:hover > .bbl-handle,
++.bbl-handle:focus-visible {
++  opacity: 1;
++  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
++}
++@media (hover: none) {
++  .bbl-handle { display: none; }
++}
+ [data-chat-bubble="simple"] :is(.chat-md, .chat-text),
+ [data-chat-bubble="simple"].chat-text {
+   line-height: 22px;

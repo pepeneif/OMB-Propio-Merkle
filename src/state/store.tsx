@@ -569,7 +569,7 @@ export interface AppState {
   routines: Routine[];
   routineRuns: RoutineRun[];
   routinesLoadState: "loading" | "ready" | "error"; routineRunsSince: number | null;
-  routinesFocus: { section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter; nonce: number };
+  routinesFocus: { section?: "schedule" | "logs"; view?: "calendar" | "list"; scope?: "all" | "schedules" | "triggers"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter; nonce: number };
   webhooks: WebhookTrigger[];
   webhookAttempts: WebhookAttempt[];
   webhookIngress: WebhookIngressStatus | null;
@@ -644,7 +644,7 @@ export type Action =
   | { type: "sections"; sections: string[] }
   | { type: "botsOrdered"; botIds: string[] }
   | { type: "sectionDeleted"; section: string; sections: string[] }
-  | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter }
+  | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; scope?: "all" | "schedules" | "triggers"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter }
   | { type: "showTeamMap" } | { type: "showWebPanel"; id: string }
   | { type: "showFiles"; suggest?: string[] }
   | { type: "showChat" }
@@ -979,7 +979,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         activeView: "routines",
-        routinesFocus: { section: action.section, view: action.view, botId: action.botId, routineId: action.routineId, runStatus: action.runStatus, nonce: state.routinesFocus.nonce + 1 },
+        routinesFocus: { section: action.section, view: action.view, scope: action.scope, botId: action.botId, routineId: action.routineId, runStatus: action.runStatus, nonce: state.routinesFocus.nonce + 1 },
         settingsOpen: false,
         computerOpen: false,
         inspectorOpen: false,
@@ -1918,7 +1918,7 @@ export const initialState: AppState = {
 export { api, ApiError, liveCallFromFrame, nextLiveCallLookup };
 
 /** Messages per snapshot thread and per scrollback page: the server's own page maximum. */
-export const MESSAGE_PAGE_SIZE = 200;
+export const MESSAGE_PAGE_SIZE = 50;
 export const SWITCH_MESSAGE_COUNT = 80;
 
 type TrustedApprovalBridge = {

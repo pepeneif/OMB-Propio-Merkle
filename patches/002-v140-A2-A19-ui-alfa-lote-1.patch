@@ -1,0 +1,913 @@
+diff --git a/server/surface.ts b/server/surface.ts
+index 430316b10..7de38b57a 100644
+--- a/server/surface.ts
++++ b/server/surface.ts
+@@ -181,7 +181,7 @@ const ASK_TO_SWITCH = `explain the mismatch and ask the user to change where thi
+ const REPORT_BACK = "tell the bot that gave you this job which place you need and end your turn, because no person watches this conversation";
+ 
+ const SURFACE_AUTHORITY =
+-  ` For browser and computer tasks, use OpenMausBot's mounted browser/computer tools first: inspect the target, perform the action, and verify its result before claiming success. Discover deferred tools by their server/name when needed. Do not substitute the provider's own desktop, a shell-launched browser, or another automation path for the selected OpenMausBot surface. Ordinary code and file tasks may still use their normal tools. Announcing an action is not performing it. A request naming another place does not move these tools: this computer is the user's host, Local VM is an isolated desktop, the cloud computer is remote, and the built-in browser is a separate browser. If the requested place differs from the mounted one, ${ASK_TO_SWITCH}; never act on a different computer or describe a host window as a VM.`;
++  ` For browser and computer tasks, use OpenMausBot's mounted browser/computer tools first: inspect the target, perform the action, and verify its result before claiming success. Do not substitute the provider's own desktop, a shell-launched browser, or another automation path for the selected OpenMausBot surface. Announcing an action is not performing it. A request naming another place does not move these tools: this computer is the user's host, Local VM is an isolated desktop, the cloud computer is remote, and the built-in browser is a separate browser. If the requested place differs from the mounted one, ${ASK_TO_SWITCH}; never act on a different computer or describe a host window as a VM.`;
+ 
+ /** A Cloud home has neither this computer nor a Local VM; each pair rewrites one phrase of the wording above. */
+ const CLOUD_HOME_WORDING: ReadonlyArray<readonly [string, string]> = [
+@@ -223,11 +223,11 @@ export function surfacePrompt(
+   if (opts.pinned) {
+     text += ` This conversation is pinned to ${surfaceLabel(opts.pinned)}; changing places requires ${opts.canSelect ? "select_computer or " : ""}the user's choice in ${PLACE_CONTROL}, not a different tool name.`;
+   }
+-  if (opts.canSelect) text += " For a screen task, use select_computer with no arguments when you need to inspect the actual available targets. Choose the requested place from its result; if the user left the place open, use a suitable available target or surface auto instead of asking them to operate the menu. Browser-only work can stay in Browser; when it needs desktop apps or capabilities the current Browser lacks, select an available Local VM without asking the user to switch it manually. Choose before taking actions, and do not repeat actions already completed if the task must continue elsewhere. OpenMausBot can start an existing configured computer and highlight the selected target. If the right tools are already mounted, use them directly. On a pending switch, end this turn: the original request resumes automatically with the new tools, and then you must carry out the task. Only ask for input for a genuine blocker, such as missing setup, required sign-in or an approval. Never silently replace an explicitly requested VM with the host desktop.";
+-  if (opts.canSelect) text += " If no suitable computer is running but its provider is configured, select_computer can provision one for this computer task; reuse existing resources first. Do not provision merely for ordinary chat or inspection.";
+-  if (opts.canSelect && !computer && !mounted.browser) text += " No computer or browser tools are mounted yet; select_computer is the way to connect them before screen work, not a reason to claim you already performed it.";
++  if (opts.canSelect) text += " For a screen task, use select_computer with no arguments; choose the place you need from its result, and if the user left the place open, use a suitable available target or surface auto instead of asking them to operate the menu. Browser-only work can stay in Browser; when it needs desktop apps or capabilities the current Browser lacks, select an available Local VM without asking the user to switch it manually. If the right tools are already mounted, use them directly. On a pending switch, end this turn: the original request resumes automatically with the new tools, and then you must carry out the task. Only ask for input for a genuine blocker, such as missing setup, required sign-in or an approval. Never silently replace an explicitly requested VM with the host desktop.";
++  if (opts.canSelect) text += " If no suitable computer is running but its provider is configured, select_computer can provision one for this task; reuse existing resources first, never merely for chat or inspection.";
++  if (opts.canSelect && !computer && !mounted.browser) text += " No computer or browser tools are mounted yet: select_computer connects them before screen work - do not claim you already performed it.";
+   if (computer || mounted.browser) text += CONNECTED_APP_FIRST;
+-  if (computer || mounted.browser) text += " For online research, use the selected OpenMausBot browser when a search service is unavailable. A failed tool proves only that this attempt failed, not that every browser is unavailable. Inspect the current page after navigation; report a sign-in page, redirect or error as such. A completed model turn is not proof that the user's task succeeded.";
++  if (computer || mounted.browser) text += " For online research, use the selected OpenMausBot browser when a search service is unavailable. A failed tool proves only that this attempt failed, not that every browser is unavailable. Inspect the current page after navigation; report a sign-in page, redirect or error as such. ";
+   if (opts.cloudHome) for (const [desktop, cloudHome] of CLOUD_HOME_WORDING) text = text.replace(desktop, cloudHome);
+   return text + (opts.note ?? "");
+ }
+diff --git a/src/components/ActivityRun.tsx b/src/components/ActivityRun.tsx
+index b9ef04e96..88329c18b 100644
+--- a/src/components/ActivityRun.tsx
++++ b/src/components/ActivityRun.tsx
+@@ -5,6 +5,7 @@ import { describeRun } from "@/lib/activity-runs";
+ import { t } from "@/lib/i18n";
+ import { useAdvancedMode } from "@/lib/interface-mode";
+ import { toolStepLabel } from "@/lib/tool-step-label";
++import { runOpenChoice, setRunOpenChoice } from "@/lib/run-open-state";
+ 
+ export function ActivityRun({
+   messages,
+@@ -15,19 +16,23 @@ export function ActivityRun({
+   forceOpen?: boolean;
+   children: React.ReactNode;
+ }) {
+-  const [open, setOpen] = useState(forceOpen);
++  // 0027 (A7): recuerda el colapso por corrida. Una vez que el usuario lo colapsa, se
++  // queda colapsado aunque lleguen pasos nuevos; solo se reabre con su clic.
++  const runId = messages[0]?.id ?? "";
++  const [open, setOpen] = useState(() => runOpenChoice(runId) ?? forceOpen);
+   const advanced = useAdvancedMode();
+   const summary = advanced ? describeRun(messages) : describeRun(messages, toolStepLabel);
+   useEffect(() => {
+-    if (forceOpen) setOpen(true);
+-  }, [forceOpen]);
++    if (forceOpen) { setOpen(true); setRunOpenChoice(runId, true); }
++  }, [forceOpen, runId]);
++  const setOpenP = (value: boolean) => { setOpen(value); setRunOpenChoice(runId, value); };
+   if (open) {
+     return (
+       <div className="flex flex-col gap-1">
+         <div className="flex min-w-0 justify-start">
+           <button
+             type="button"
+-            onClick={() => setOpen(false)}
++            onClick={() => setOpenP(false)}
+             aria-expanded
+             className="flex min-w-0 max-w-full items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary hover:bg-control"
+           >
+@@ -43,7 +48,7 @@ export function ActivityRun({
+     <div className="flex min-w-0 justify-start">
+       <button
+         type="button"
+-        onClick={() => setOpen(true)}
++        onClick={() => setOpenP(true)}
+         aria-expanded={false}
+         title={t("chat.run.showSteps")}
+         className="flex min-w-0 max-w-full items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary hover:bg-control"
+diff --git a/src/components/BotModelBadge.tsx b/src/components/BotModelBadge.tsx
+index 5ec21101a..cd22d8da2 100644
+--- a/src/components/BotModelBadge.tsx
++++ b/src/components/BotModelBadge.tsx
+@@ -21,11 +21,16 @@ export function botTooltip(bot: Pick<Bot, "name" | "title" | "chiefOfStaff" | "m
+   ].filter(Boolean).join(" · ");
+ }
+ 
++/** A16 (v140): Jose pidio que el logo del proveedor NO se imponga sobre el avatar del bot.
++ *  Para volver al comportamiento anterior, poner `SHOW_PROVIDER_MARK = true`. */
++export const SHOW_PROVIDER_MARK = false;
++
+ export function BotModelBadge({ bot, instances, avatarSize }: {
+   bot: Pick<Bot, "modelSelection">;
+   instances: InstanceInfo[];
+   avatarSize: number;
+ }) {
++  if (!SHOW_PROVIDER_MARK) return null;
+   const model = botModel(bot, instances);
+   if (!model) return null;
+   const size = Math.max(14, Math.round(avatarSize * 0.4));
+diff --git a/src/components/BotRole.tsx b/src/components/BotRole.tsx
+index 675dcf0b0..cb3d810df 100644
+--- a/src/components/BotRole.tsx
++++ b/src/components/BotRole.tsx
+@@ -13,14 +13,10 @@ export function SidebarBotRole({ role }: { role: string }) {
+ }
+ 
+ export function ChatHeadRole({ bot }: { bot: Pick<Bot, "title" | "chiefOfStaff"> }) {
+-  const role = bot.title.trim();
+-  const repeatsChiefBadge = bot.chiefOfStaff && role.toLocaleLowerCase() === t("chat.chiefOfStaff").toLocaleLowerCase();
+-  if (!role || repeatsChiefBadge) return null;
+-  return (
+-    <span data-chathead-role className="flex min-w-0 max-w-fit grow basis-0">
+-      <span title={role} className="max-w-[16rem] truncate text-[13px] text-ink-secondary">{role}</span>
+-    </span>
+-  );
++  // 0024 (A2, v140): NO se muestra el rol de ningun bot en la cabecera del chat, ni del
++  // Chief of Staff. Jose lo pidio asi el 2026-10-31 y lo confirmo para la 140 el 2026-11-04.
++  void bot;
++  return null;
+ }
+ 
+ export function chiefOfStaffBadge(bot: Bot) {
+diff --git a/src/components/ChatHeadThreads.tsx b/src/components/ChatHeadThreads.tsx
+new file mode 100644
+index 000000000..b65d864f1
+--- /dev/null
++++ b/src/components/ChatHeadThreads.tsx
+@@ -0,0 +1,55 @@
++import { ChevronDown, MessagesSquare, SquarePen } from "lucide-react";
++import { openBotThread, useStore, type Bot } from "@/state/store";
++import { useShowThreads } from "@/lib/thread-preferences";
++import { t } from "@/lib/i18n";
++import { localizedTaskTitle } from "@/lib/task-title";
++import { cn } from "@/lib/cn";
++import { ELEVATED_FLOAT, ELEVATED_HOVER, ELEVATED_OPEN } from "./elevated";
++import { SidebarPopoverMenu, type SidebarMenuItem } from "./SidebarPopoverMenu";
++import { orderedThreadList } from "./SidebarThreadRow";
++
++/** A19 (v140): desplegable de hilos abiertos con el bot, entre el nombre y el icono de la computadora.
++ *  La caja de la lista usa la misma superficie que la pastilla del nombre (blanca en Atelier, oscura en los demas temas). */
++export function ChatHeadThreads({ bot: profile }: { bot: Bot }) {
++  const { dispatch } = useStore();
++  const showThreads = useShowThreads();
++  const threads = showThreads ? [] : orderedThreadList((profile.tasks ?? []).filter((task) => !task.routineRunId));
++  const items: SidebarMenuItem[] = [
++    ...(threads.length < 2 ? [] : threads.map((task) => ({
++      key: `thread:${task.threadId}`,
++      label: localizedTaskTitle(task.title || t("task.newShort")),
++      icon: <MessagesSquare size={16} />,
++      active: task.threadId === profile.threadId,
++      onSelect: () => openBotThread(dispatch, profile, task.threadId, showThreads),
++    } satisfies SidebarMenuItem))),
++    {
++      key: "new-thread",
++      heading: t("task.list"),
++      separatorBefore: threads.length >= 2,
++      label: t("task.newShort"),
++      icon: <SquarePen size={16} />,
++      onSelect: () => dispatch({ type: "newTask", botId: profile.id }),
++    },
++  ];
++  return (
++    <SidebarPopoverMenu
++      items={items}
++      ariaLabel={t("task.switch")}
++      placement="below"
++      align="end"
++      triggerClassName="rounded-full"
++      triggerTitle={t("task.switch")}
++      renderTrigger={({ open }) => (
++        <span
++          data-testid="chathead-threads"
++          className={cn(
++            "flex size-8 items-center justify-center rounded-full text-ink-secondary transition-colors hover:bg-ink/[0.06] hover:text-ink",
++            open && "bg-ink/[0.06] text-ink",
++          )}
++        >
++          <ChevronDown size={16} className={cn("transition-transform", open && "rotate-180")} />
++        </span>
++      )}
++    />
++  );
++}
+diff --git a/src/components/ChatMarkdown.tsx b/src/components/ChatMarkdown.tsx
+index aa7f5610c..2116ad4d7 100644
+--- a/src/components/ChatMarkdown.tsx
++++ b/src/components/ChatMarkdown.tsx
+@@ -10,6 +10,7 @@ import { t } from "@/lib/i18n";
+ import { cn } from "@/lib/cn";
+ import { useAdvancedMode } from "@/lib/interface-mode";
+ import { remarkMentions, sameMentionPerson, type MentionPeer, type MentionPerson } from "@/lib/mentions";
++import { remarkUnderline } from "@/lib/remark-user-format";
+ import { createMarkdownRenderCache } from "@/lib/markdown-render-cache";
+ 
+ import { parseFenceInfo } from "../lib/code-block";
+@@ -754,10 +755,10 @@ export function clearChatMarkdownCache(): void {
+   markdownCache.clear();
+ }
+ 
+-function ChatMarkdownComponent({ text, message, mentionPeers = NO_MENTION_PEERS, everyone = false, mentionPerson, delivered }: {
++function ChatMarkdownComponent({ text, message, mentionPeers = NO_MENTION_PEERS, everyone = false, mentionPerson, delivered, underline = false }: {
+   text: string; message?: MessageAttachmentContext;
+   mentionPeers?: readonly MentionPeer[]; everyone?: boolean; mentionPerson?: MentionPerson;
+-  delivered?: DeliveredFiles;
++  delivered?: DeliveredFiles; underline?: boolean;
+ }) {
+   // use() may be called conditionally: only a message that can hold a thread link subscribes to the thread list.
+   const { threads, currentBotId } = MAY_LINK_THREAD.test(text) ? use(ThreadRefsContext) : NO_THREAD_REFS;
+@@ -781,10 +782,10 @@ function ChatMarkdownComponent({ text, message, mentionPeers = NO_MENTION_PEERS,
+   }, [needsMath]);
+   const mathPlugin = needsMath && katexReady ? katexPlugin : null;
+   const mentions = source.includes("@"), linksThreads = threads.length > 0;
+-  const variant = `${mathPlugin ? "math" : ""}\u0003${mentions ? `${peerSignature(mentionPeers)}\u0001${everyone ? 1 : 0}\u0001${mentionPerson?.profileName ?? ""}` : ""}\u0003${linksThreads ? `${threadListId(threads)}\u0001${currentBotId ?? ""}` : ""}`;
++  const variant = `${underline ? "u" : ""}\u0003${mathPlugin ? "math" : ""}\u0003${mentions ? `${peerSignature(mentionPeers)}\u0001${everyone ? 1 : 0}\u0001${mentionPerson?.profileName ?? ""}` : ""}\u0003${linksThreads ? `${threadListId(threads)}\u0001${currentBotId ?? ""}` : ""}`;
+   // Markdown is a plain function of its options (no hooks), so its elements can be kept and drawn again.
+   const markdown = markdownCache.render(text, variant, () => {
+-    const remarkPlugins = [...BASE_REMARK_PLUGINS];
++    const remarkPlugins = [...(underline ? [remarkUnderline] : []), ...BASE_REMARK_PLUGINS];
+     if (mentions) remarkPlugins.push([remarkMentions, { peers: mentionPeers, everyone, person: mentionPerson }]);
+     if (linksThreads) remarkPlugins.push(remarkThreadRefs(threads, currentBotId));
+     return Markdown({ children: source, remarkPlugins, rehypePlugins: rehypePluginsFor(mathPlugin), urlTransform: chatUrlTransform, components: MARKDOWN_COMPONENTS });
+@@ -812,6 +813,7 @@ export const ChatMarkdown = memo(ChatMarkdownComponent, (previous, next) => (
+   && previous.message?.threadId === next.message?.threadId
+   && previous.message?.messageId === next.message?.messageId
+   && sameDelivered(previous.delivered, next.delivered)
++  && previous.underline === next.underline
+ ));
+ 
+ function sameDelivered(previous: DeliveredFiles | undefined, next: DeliveredFiles | undefined): boolean {
+diff --git a/src/components/ChatMoreMenu.tsx b/src/components/ChatMoreMenu.tsx
+index 46fedf0d3..4ebc82b50 100644
+--- a/src/components/ChatMoreMenu.tsx
++++ b/src/components/ChatMoreMenu.tsx
+@@ -37,7 +37,8 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
+   const transcript = () => formatTranscriptMarkdown({ title: bot.name, messages, botName: bot.name, isGroup: false });
+   const threads = showThreads ? [] : orderedThreadList((profile.tasks ?? []).filter((task) => !task.routineRunId));
+   const selection = profile.modelSelection;
+-  const modelName = phoneHeader && selection
++  // A18 (v140): el menu muestra el modelo y la intensidad; en movil ya lo hacia, ahora tambien en escritorio.
++  const modelName = selection
+     ? state.instances.find((candidate) => candidate.instanceId === selection.instanceId)?.models.options.find((option) => option.id === selection.model)?.label ?? selection.model
+     : "";
+   // On a phone the header drops the profile pill's click target, the model chip and the Bot's screen button; they live here.
+@@ -75,6 +76,20 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
+       trailing: <ShortcutHint id="find-conversation" />,
+       onSelect: () => requestChatFind(bot.threadId),
+     },
++    {
++      key: "model",
++      label: t("model.simple.model"),
++      icon: <Cpu size={16} />,
++      value: modelName,
++      onSelect: () => openBotSettings(dispatch, "model"),
++    },
++    {
++      key: "reasoning",
++      label: t("model.effort.label"),
++      icon: <Gauge size={16} />,
++      value: selection?.effort ?? "",
++      onSelect: () => openBotSettings(dispatch, "model"),
++    },
+     ...phoneScreen,
+     ...(showThreads ? [] : [{
+       key: "new-thread",
+diff --git a/src/components/ChatView.controls.test.ts b/src/components/ChatView.controls.test.ts
+index e0d062220..c09ec72e6 100644
+--- a/src/components/ChatView.controls.test.ts
++++ b/src/components/ChatView.controls.test.ts
+@@ -178,7 +178,6 @@ describe("the Simple header", () => {
+     expect(advanced).not.toContain("data-chathead-elsewhere");
+     expect(advanced).toContain("data-background-activity");
+     expect(advanced).toContain("data-chathead-back");
+-    expect(advanced).toContain("data-chathead-role");
+     fixture.showThreads = true;
+   });
+ 
+@@ -216,28 +215,19 @@ describe("header name", () => {
+     expect(pill).toContain("Rename Pepper");
+   });
+ 
+-  it("shows the bot's role beside the pill in Advanced mode, taking only the room the name leaves, and leaves it to the bot panel in Simple", () => {
+-    fixture.advanced = false;
+-    expect(renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, title: " Research " } }))).not.toContain("data-chathead-role");
+-    for (const advanced of [true]) {
++  it("keeps the role out of the header for every bot except the Chief of Staff (personalizacion Manager 0021 / D2)", () => {
++    for (const advanced of [true, false]) {
+       fixture.advanced = advanced;
+       const markup = renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, title: " Research " } }));
+-      const identity = markup.slice(markup.indexOf("data-chathead-identity"), markup.indexOf("data-chathead-controls"));
+-      const role = identity.match(/<span data-chathead-role="true" class="([^"]*)"><span title="Research" class="([^"]*)">Research<\/span><\/span>/);
+-      expect(role, `advanced ${advanced}`).toBeTruthy();
+-      expect(role![1].split(" ")).toEqual(expect.arrayContaining(["min-w-0", "max-w-fit", "grow", "basis-0"]));
+-      expect(role![2].split(" ")).toEqual(expect.arrayContaining(["truncate", "text-[13px]", "text-ink-secondary"]));
+-      expect(identity.indexOf("data-chathead-role")).toBeGreaterThan(identity.indexOf("Rename Pepper"));
+-      expect(renderToStaticMarkup(createElement(ChatView, { bot }))).not.toContain("data-chathead-role");
++      expect(markup).not.toContain("data-chathead-role");
+     }
+     fixture.advanced = true;
+   });
+ 
+-  it("leaves a Chief's role out of the header when it only repeats the Chief of Staff badge", () => {
+-    const header = (title: string) => renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, chiefOfStaff: true, title } }));
+-    expect(header("chief of staff ")).not.toContain("data-chathead-role");
+-    expect(header("Operations lead")).toContain('<span title="Operations lead"');
+-    expect(renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, title: "Chief of Staff" } }))).toContain("data-chathead-role");
++  it("draws no role beside the name for anyone, the Chief of Staff included (personalizacion Manager 0024 / A2, v140)", () => {
++    const markup = renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, chiefOfStaff: true, title: " Research " } }));
++    expect(markup).not.toContain("data-chathead-role");
++    expect(renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, chiefOfStaff: true, title: "chief of staff " } }))).not.toContain("data-chathead-role");
+   });
+ 
+   it("draws no working dots in the header pill, keeping one width, while a status still tells a screen reader", () => {
+diff --git a/src/components/ChatView.tsx b/src/components/ChatView.tsx
+index d54cf2a06..8c0e0f797 100644
+--- a/src/components/ChatView.tsx
++++ b/src/components/ChatView.tsx
+@@ -60,6 +60,7 @@ import { showWorkingDots } from "@/lib/turn-tail";
+ import { lastNonReceipt } from "@/lib/receipts";
+ import { useTurnLive } from "@/state/turn-status"; import { useTurnNow } from "./NowCard"; import { useThreadRoutineRun } from "@/state/older-routine-runs";
+ import { ChatMarkdown } from "./ChatMarkdown";
++import { userTextHasMarkdown } from "@/lib/remark-user-format";
+ import { LiveToolsContext, useLiveToolIds } from "@/hooks/use-live-tool-ids";
+ import { VoiceNoteBubble, type VoiceNoteAttachment } from "./VoiceNoteBubble";
+ import { RawMarkdownView, RawToggleAction } from "./RawMarkdownToggle";
+@@ -94,7 +95,6 @@ import { CompactionChip, DigestChip } from "./DigestChip";
+ import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaffBadge } from "./BotRole";
+ import { BotActivityPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill";
+ import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
+-import { ModelPicker } from "./ModelPicker";
+ import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
+ import { useChatFindRequests } from "@/lib/chat-find";
+ import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
+@@ -111,6 +111,8 @@ import { StatusActivityRow } from "@/components/StatusActivityRow";
+ import { CancelledTurnRow } from "./CancelledTurnRow";
+ import { ActivityRun } from "./ActivityRun";
+ import { TurnNarrationRun } from "./TurnNarrationRun";
++import { isNarrationText } from "@/lib/activity-runs";
++import { ChatHeadThreads } from "./ChatHeadThreads";
+ import { BubbleEditor } from "./BubbleEditor";
+ import { ReplyBlocks } from "./ReplyBlocks";
+ import { webhookMessageView } from "@/lib/webhook-message";
+@@ -134,13 +136,11 @@ import { latestFailure, latestReply, type TranscriptSnapshot } from "@/lib/trans
+ import { pendingApprovals } from "./PendingApproval";
+ import { TranscriptAnnouncer } from "./TranscriptAnnouncer";
+ import { JumpToLatestButton } from "./JumpToLatestButton";
+-import { isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, type BubbleJoin } from "./chat-bubble";
+-
+-const USER_COLLAPSE_CHARS = 600;
+-const USER_COLLAPSE_LINES = 8;
++import { isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, TINT_BORDER_CLASS, USER_TINT_BORDER, type BubbleJoin } from "./chat-bubble";
++import { MAUS_COLORS } from "@/lib/mascot";
+ 
+ interface ChatRows {
+-  botId: string; threadId: string; botName: string; botColor: Bot["color"]; voiceId?: string;
++  botId: string; threadId: string; botName: string; botColor: Bot["color"]; tintBorder?: boolean; voiceId?: string;
+   tts: ConfigStatus["tts"]; localVoice: boolean;
+   hasMore: boolean; bots: readonly Bot[];
+   mentionPeers: readonly MentionPeer[]; mentionPerson: { profileName?: string };
+@@ -316,6 +316,7 @@ const Bubble = memo(function Bubble({
+   joinAbove = false,
+   joinBelow = false,
+   workedFor,
++  narration = false,
+   editing,
+   pinned,
+   versions,
+@@ -334,6 +335,8 @@ const Bubble = memo(function Bubble({
+   joinBelow?: boolean;
+   /** Simple mode: how long the turn this answer ends took, for its tooltip. */
+   workedFor?: number;
++  /** A4 (v140): nota intermedia del turno — sin fondo y 2 px menor, se funde con el chat. */
++  narration?: boolean;
+   editing: boolean;
+   pinned: boolean;
+   versions?: readonly Message[];
+@@ -344,12 +347,16 @@ const Bubble = memo(function Bubble({
+   replyTarget?: Message;
+   onReply: (message: Message) => void;
+ }) {
+-  const { botId, threadId, botName, voiceId, tts, localVoice, bots, mentionPeers, mentionPerson, focus, dispatch, onBranch, bubbleStyle, conversational, simple, canReact, openedAt, speakerViewer } = useChatRows(), busy = onRegenerate || versions ? use(ChatBusyContext) : false;
++  const { botId, threadId, botName, botColor, tintBorder, voiceId, tts, localVoice, bots, mentionPeers, mentionPerson, focus, dispatch, onBranch, bubbleStyle, conversational, simple, canReact, openedAt, speakerViewer } = useChatRows(), busy = onRegenerate || versions ? use(ChatBusyContext) : false;
+   const remoteClient = window.ogb?.remoteClient?.active === true;
+   const peer = peerLine(message) ?? peerRequest(message, botId);
+   const user = message.role === "user" && !peer;
+   const speaker = user ? otherSpeaker(message, speakerViewer ?? null) : null;
+   const ownBubbleStyle = speaker ? undefined : bubbleStyle;
++  // A10 (v140): con la opcion encendida, el borde de 1 px del color del bot marca mi burbuja y la final del bot.
++  const tinted = Boolean(USER_TINT_BORDER && tintBorder && !speaker && !peer);
++  const tintBorderColor = tinted ? MAUS_COLORS[botColor] : undefined;
++  const isFinalBotBubble = tinted && !user && !speaker && message.role === "bot" && message.kind === "text" && !narration && !message.automation;
+   const [expanded, setExpanded] = useState(false);
+   const focusedSearch = focus?.messageId === message.id && Boolean(focus.matchText);
+   const [viewRaw, setViewRaw] = useState(false);
+@@ -401,8 +408,8 @@ const Bubble = memo(function Bubble({
+   const hasAttachments = Boolean(cited?.citations.length || (attachments && (attachments.images.length || attachments.files.length)));
+   const attachmentsOnly = !webhookView && !replyTarget && !visibleText.trim() &&
+     (user ? hasAttachments : generatedPaths.length + linkedFiles.length > 0);
+-  const collapsible =
+-    user && !webhookView && !expanded && (visibleText.length > USER_COLLAPSE_CHARS || visibleText.split("\n").length > USER_COLLAPSE_LINES);
++  // 0022 (D5, v140-A5): los mensajes del usuario ya no se recortan; se ven completos.
++  const collapsible = false;
+   useEffect(() => {
+     if (focusedSearch && collapsible) setExpanded(true);
+   }, [focusedSearch, collapsible, focus?.nonce]);
+@@ -465,13 +472,15 @@ const Bubble = memo(function Bubble({
+               : attachmentsOnly || split || tabled
+                 ? cn("text-ink", simple && SIMPLE_BUBBLE_TEXT)
+                 : user
+-                  ? cn("whitespace-pre-wrap [overflow-wrap:anywhere] text-ink", simple ? SIMPLE_USER_BUBBLE : "bg-bubble-user px-4 py-2.5", ownBubbleStyle && "user-bubble-colored", simple && ownBubbleStyle && "antialiased")
+-                  : formatted
+-                    ? cn(formattedReplyWidth(text), "px-1 text-ink")
+-                    : simple ? SIMPLE_BOT_BUBBLE : "bg-card px-4 py-2.5 text-ink",
++                  ? cn("whitespace-pre-wrap [overflow-wrap:anywhere] text-ink", simple ? SIMPLE_USER_BUBBLE : "bg-bubble-user px-4 py-2.5", ownBubbleStyle && "user-bubble-colored", simple && ownBubbleStyle && "antialiased", tinted && TINT_BORDER_CLASS)
++                  : narration
++                    ? cn(formatted ? formattedReplyWidth(text) : "", "rounded-2xl px-4 py-[5px] text-[13px] text-ink")
++                    : formatted
++                      ? cn(formattedReplyWidth(text), "px-1 text-ink")
++                      : cn(simple ? SIMPLE_BOT_BUBBLE : "bg-card px-4 py-2.5 text-ink", isFinalBotBubble && TINT_BORDER_CLASS),
+             simple && join && !split && !attachmentsOnly && !tabled && joinedCorners(user ? "end" : "start", join),
+           )}
+-          style={user && !webhookView && !attachmentsOnly ? ownBubbleStyle : undefined}
++          style={user && !webhookView && !attachmentsOnly ? { ...ownBubbleStyle, ...(tinted ? { borderColor: tintBorderColor } : {}) } : (isFinalBotBubble ? { borderColor: tintBorderColor } : undefined)}
+           title={workedFor === undefined ? new Date(message.at).toLocaleString() : `${workedLabel(workedFor)} · ${new Date(message.at).toLocaleString()}`}
+         >
+           {replyTarget && (
+@@ -511,7 +520,9 @@ const Bubble = memo(function Bubble({
+                   data-citation-owner={botId}
+                   data-citation-thread={threadId}
+                 >
+-                  <ThreadRefText text={visibleText} peers={mentionPeers} />
++                  {userTextHasMarkdown(visibleText)
++                    ? <ChatMarkdown text={visibleText} mentionPeers={mentionPeers} mentionPerson={mentionPerson} underline message={{ threadId, messageId: message.id }} />
++                    : <ThreadRefText text={visibleText} peers={mentionPeers} />}
+                 </div>
+               )}
+               {cited && <SentCitations
+@@ -791,6 +802,7 @@ const MessagesList = memo(function MessagesList({
+                   onStartEdit={onStartEdit}
+                   onCancelEdit={onCancelEdit}
+                   onSubmitEdit={onSubmitEdit}
++                  narration={isNarrationText(m)}
+                   onRegenerate={m.id === lastBotTextId && !m.automation ? onRegenerate : undefined}
+                   replyTarget={lookups.replyTarget(m)}
+                   onReply={onReply}
+@@ -913,8 +925,8 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+   const reactor = useReactor();
+   const speakerViewer = state.config?.team && reactor !== "user" ? reactor : null;
+   const rows = useMemo<ChatRows>(
+-    () => ({ botId: bot.id, threadId: bot.threadId, botName: bot.name, botColor: bot.color, voiceId: bot.voice, tts, localVoice, hasMore, bots, mentionPeers, mentionPerson: { profileName: state.config?.profile?.name }, focus, showToolCalls, locale, dispatch, onBranch, bubbleStyle, conversational: isConversational(bot.replyStyle), simple: !advanced, canReact: canWrite !== false, openedAt, speakerViewer }),
+-    [bot.id, bot.threadId, bot.name, bot.color, bot.voice, tts, localVoice, hasMore, bots, mentionPeers, state.config?.profile?.name, focus, showToolCalls, locale, dispatch, onBranch, bubbleStyle, bot.replyStyle, advanced, canWrite, openedAt, speakerViewer],
++    () => ({ botId: bot.id, threadId: bot.threadId, botName: bot.name, botColor: bot.color, tintBorder: colorMine, voiceId: bot.voice, tts, localVoice, hasMore, bots, mentionPeers, mentionPerson: { profileName: state.config?.profile?.name }, focus, showToolCalls, locale, dispatch, onBranch, bubbleStyle, conversational: isConversational(bot.replyStyle), simple: !advanced, canReact: canWrite !== false, openedAt, speakerViewer }),
++    [bot.id, bot.threadId, bot.name, bot.color, colorMine, bot.voice, tts, localVoice, hasMore, bots, mentionPeers, state.config?.profile?.name, focus, showToolCalls, locale, dispatch, onBranch, bubbleStyle, bot.replyStyle, advanced, canWrite, openedAt, speakerViewer],
+   );
+   const currentTask = bot.tasks?.find((task) => task.threadId === bot.threadId), place = effectivePlace(bot, currentTask), team = state.config?.team, privateChat = Boolean(team) && currentTask?.private === true, ownHelper = Boolean(team) && !privateChat && Boolean(bot.defaultBot?.person), sharedChat = Boolean(team) && !privateChat && !ownHelper;
+ 
+@@ -1047,24 +1059,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+                   animated={headerAnimated}
+                 />
+               </button>
+-              <RenameTitle
+-                value={bot.name}
+-                onCommit={(name) => {
+-                  if (window.ogb?.remoteClient?.active) {
+-                    void api(`/api/bots/${bot.id}/profile`, { method: "PATCH", body: JSON.stringify({ name }) })
+-                      .then(({ bot: updated }) => dispatch({ type: "botPatched", bot: updated }))
+-                      .catch((cause) => dispatch({ type: "error", message: cause instanceof Error ? cause.message : String(cause) }));
+-                  } else {
+-                    dispatch({ type: "updateBot", botId: bot.id, patch: { name } });
+-                  }
+-                }}
+-                onActivate={() => dispatch({ type: "toggleSettings", open: true })}
+-                showEditButton
+-                className="truncate text-[14px] font-semibold text-ink"
+-                editButtonClassName="size-6 rounded-full"
+-                inputClassName="max-w-[220px] rounded-full bg-inset px-2 py-0.5 text-[14px] font-semibold"
+-              />
+-              {chiefOfStaffBadge(bot)}
+             </div>
+           ) : (
+             <button
+@@ -1114,9 +1108,35 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+           )}
+           <ThreadContextWarning bot={bot} messages={messages} />
+           <EngineLimitNotice engine={bot.modelSelection?.instanceId} />
+-          {/* The model and the bot's computer stay in view in both modes; Simple mode moves only ⋯ into the bot panel. */}
+-          {!phone && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
++          {/* A18 (v140): el modelo y la intensidad viven ahora dentro del menu ⋯. */}
+           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
++          {!phone && !simpleHead && (
++            <>
++              {/* A17 (v140): el nombre del bot con su lapiz, arriba a la derecha (donde estaba el modelo). */}
++              <div data-chathead-name className={cn(CHATHEAD_PILL, "pr-1")}>
++                <RenameTitle
++                  value={bot.name}
++                  onCommit={(name) => {
++                    if (window.ogb?.remoteClient?.active) {
++                      void api(`/api/bots/${bot.id}/profile`, { method: "PATCH", body: JSON.stringify({ name }) })
++                        .then(({ bot: updated }) => dispatch({ type: "botPatched", bot: updated }))
++                        .catch((cause) => dispatch({ type: "error", message: cause instanceof Error ? cause.message : String(cause) }));
++                    } else {
++                      dispatch({ type: "updateBot", botId: bot.id, patch: { name } });
++                    }
++                  }}
++                  onActivate={() => dispatch({ type: "toggleSettings", open: true })}
++                  showEditButton
++                  className="truncate text-[14px] font-semibold text-ink"
++                  editButtonClassName="size-6 rounded-full"
++                  inputClassName="max-w-[220px] rounded-full bg-inset px-2 py-0.5 text-[14px] font-semibold"
++                />
++                {chiefOfStaffBadge(bot)}
++              </div>
++              {/* A19 (v140): desplegable de hilos abiertos, entre el nombre y el icono de la computadora. */}
++              <ChatHeadThreads bot={bot} />
++            </>
++          )}
+           {!phoneMenu && <button
+             data-tour="computer"
+             onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
+@@ -1260,6 +1280,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+         <div className="flex justify-end px-5 pb-2">
+           <VerifyCard
+             key={transcriptKey}
++            storeKey={`${bot.id}:${bot.threadId}:run`}
+             steps={recordedRun}
+             canSave={canSaveRun}
+             skill={runSkill(messages, recordedRun)}
+diff --git a/src/components/GroupView.tsx b/src/components/GroupView.tsx
+index 13036fec3..589b141d3 100644
+--- a/src/components/GroupView.tsx
++++ b/src/components/GroupView.tsx
+@@ -30,8 +30,11 @@ import { normalizeState } from "@/lib/mascot";
+ import { botTextShowsSpeaker, laterTextOwns, runShowsSpeaker } from "@/lib/room-speaker";
+ import { defaultResponderName, groupResponseHint, jevRoomRoutingOn } from "@/lib/group-routing";
+ import { ChatMarkdown } from "./ChatMarkdown";
++import { userTextHasMarkdown } from "@/lib/remark-user-format";
+ import { FailedTurnRow, MessageBoundary } from "./ChatView";
+-import { SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_USER_BUBBLE } from "./chat-bubble";
++import { SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_USER_BUBBLE, TINT_BORDER_CLASS, USER_TINT_BORDER } from "./chat-bubble";
++import { useColorUserBubbles } from "@/lib/user-bubble-preference";
++import { MAUS_COLORS } from "@/lib/mascot";
+ import { ReplyBlocks } from "./ReplyBlocks";
+ import { useAdvancedMode } from "@/lib/interface-mode";
+ import { CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction } from "./MessageActions";
+@@ -68,6 +71,7 @@ import { isQuestionCard, QuestionCard } from "./QuestionCard";
+ import { ManageMembersPanel } from "./ManageMembersPanel";
+ import { groupActivityRuns, isStatusActivity, roomTurnFolds } from "@/lib/activity-runs";
+ import { TurnNarrationRun } from "./TurnNarrationRun";
++import { isNarrationText } from "@/lib/activity-runs";
+ import { ActivityRun } from "./ActivityRun";
+ import { cn } from "@/lib/cn";
+ import { useMenuMotion } from "./MenuMotion";
+@@ -134,9 +138,6 @@ export function RoomToolChip({ message, roomId, threadId, live = false }: { mess
+   );
+ }
+ 
+-const USER_COLLAPSE_CHARS = 600;
+-const USER_COLLAPSE_LINES = 8;
+-
+ function RoomTextMessage({
+   group,
+   message: m,
+@@ -144,6 +145,7 @@ function RoomTextMessage({
+   transcript,
+   emerging,
+   eager,
++  narration = false,
+   onReply,
+   canReact,
+ }: {
+@@ -153,6 +155,7 @@ function RoomTextMessage({
+   transcript: Message[];
+   emerging: boolean;
+   eager: boolean;
++  narration?: boolean;
+   onReply: (message: Message) => void;
+   canReact: boolean;
+ }) {
+@@ -170,10 +173,15 @@ function RoomTextMessage({
+   const speaking = speech.messageId === m.id && speech.status !== "idle";
+   const focus = state.focusMessage;
+   const focusedSearch = focus?.messageId === m.id && Boolean(focus.matchText) && focus.threadId === group.threadId;
+-  const collapsible = user && !expanded && (display.length > USER_COLLAPSE_CHARS || display.split("\n").length > USER_COLLAPSE_LINES);
++  // 0022 (D5, v140-A5): las burbujas del usuario en salas tampoco se recortan (Jose, 2026-11-04).
++  const collapsible = false;
+   useEffect(() => { if (focusedSearch && collapsible) setExpanded(true); }, [focusedSearch, collapsible, focus?.nonce]);
+   const simple = !useAdvancedMode();
+   const speakerBot = members.find((member) => member.id === m.from?.botId);
++  // A10 (v140): "Color my messages" marca la burbuja final de cada bot con un borde de 1 px de su color (salas).
++  const colorMine = useColorUserBubbles();
++  const tintedBot = Boolean(USER_TINT_BORDER && colorMine && !user && m.kind === "text" && !narration && !m.automation);
++  const tintBorderColor = tintedBot ? MAUS_COLORS[(speakerBot?.color ?? "green") as keyof typeof MAUS_COLORS] : undefined;
+   const botText = rawText; const teammates = useTeammates(); const peers = useMemo(() => [...members, ...teammates.peers], [members, teammates]);
+   const pin = roomPin(group, m, dispatch);
+   const botMenu = useBotMessageMenu({
+@@ -218,12 +226,15 @@ function RoomTextMessage({
+             !user && emerging && "turn-answer",
+             tabled || (!user && !m.text?.trim() && !m.replyToId && m.attachments?.length)
+               ? "text-ink"
+-              : !simple && !user && isFormattedReply(m.text ?? "")
++              : narration
++                ? "rounded-2xl px-4 py-[5px] text-[13px] text-ink"
++                : !simple && !user && isFormattedReply(m.text ?? "")
+                 ? cn(formattedReplyWidth(m.text ?? ""), "px-1 text-ink")
+                 : user
+                   ? cn("chat-text whitespace-pre-wrap [overflow-wrap:anywhere] text-ink", simple ? SIMPLE_USER_BUBBLE : "bg-bubble-user px-4 py-2.5")
+-                  : simple ? SIMPLE_BOT_BUBBLE : "bg-card px-4 py-2.5 text-ink",
++                  : cn(simple ? SIMPLE_BOT_BUBBLE : "bg-card px-4 py-2.5 text-ink", tintedBot && TINT_BORDER_CLASS),
+           )}
++          style={tintedBot ? { borderColor: tintBorderColor } : undefined}
+           title={new Date(m.at).toLocaleString()}
+         >
+           {m.replyToId && (() => {
+@@ -251,7 +262,9 @@ function RoomTextMessage({
+                 data-citation-owner={group.id}
+                 data-citation-thread={group.threadId}
+               >
+-                <ThreadRefText text={display} peers={peers} everyone={!group.dm} />
++                {userTextHasMarkdown(display)
++                  ? <ChatMarkdown text={display} mentionPeers={peers} everyone={!group.dm} mentionPerson={{ profileName: state.config?.profile?.name }} underline message={{ threadId: group.threadId, messageId: m.id }} />
++                  : <ThreadRefText text={display} peers={peers} everyone={!group.dm} />}
+               </div>{m.bugReport && <BugReportNote report={m.bugReport} />}
+               {cited && <SentCitations
+                 citations={cited.citations}
+@@ -511,6 +524,7 @@ export const Transcript = memo(function Transcript({
+                       transcript={transcript}
+                       emerging={false}
+                       eager={false}
++                      narration={isNarrationText(note)}
+                       onReply={onReply}
+                       canReact={canReact}
+                     />
+diff --git a/src/components/RichTable.tsx b/src/components/RichTable.tsx
+index 8cf7d4c28..862abd3be 100644
+--- a/src/components/RichTable.tsx
++++ b/src/components/RichTable.tsx
+@@ -45,7 +45,9 @@ export function TableDialog({ title, onClose, children, returnFocus }: { title:
+   );
+ }
+ 
+-const SMALL_TABLE_ROWS = 8;
++// 0024 (A8, v140): sin umbral — la barra de busqueda de las tablas se muestra SIEMPRE
++// (como en v0.1.107), sin importar cuantas filas tenga la tabla. Jose, 2026-10-31.
++const SMALL_TABLE_ROWS = 0;
+ 
+ /** Simple mode's table card: the composer surface with a hairline edge and no footer. Its header row starts at the
+  * top; the hover plate floats over the header's right end and takes no room. Only touch screens, where the plate is
+diff --git a/src/components/TurnNarrationRun.tsx b/src/components/TurnNarrationRun.tsx
+index b90524dbf..0580dfe10 100644
+--- a/src/components/TurnNarrationRun.tsx
++++ b/src/components/TurnNarrationRun.tsx
+@@ -1,6 +1,7 @@
+ // Providers such as Grok narrate before tools.
+ import { useEffect, useState } from "react";
+ import { Check, ChevronRight } from "lucide-react";
++import { runOpenChoice, setRunOpenChoice } from "@/lib/run-open-state";
+ 
+ export function TurnNarrationRun({
+   label,
+@@ -13,17 +14,20 @@ export function TurnNarrationRun({
+   forceOpen?: boolean;
+   children: React.ReactNode;
+ }) {
+-  const [open, setOpen] = useState(forceOpen);
++  // 0027 (A7): conserva el colapso de la narracion por corrida (llave = etiqueta + primer paso).
++  const runId = `narration:${label}`;
++  const [open, setOpen] = useState(() => runOpenChoice(runId) ?? forceOpen);
+   useEffect(() => {
+-    if (forceOpen) setOpen(true);
+-  }, [forceOpen]);
++    if (forceOpen) { setOpen(true); setRunOpenChoice(runId, true); }
++  }, [forceOpen, runId]);
++  const toggle = () => { setOpen((v) => { const next = !v; setRunOpenChoice(runId, next); return next; }); };
+ 
+   return (
+     <div className="flex flex-col gap-2">
+       <div className="flex justify-start">
+         <button
+           type="button"
+-          onClick={() => setOpen((value) => !value)}
++          onClick={toggle}
+           aria-expanded={open}
+           title={title ?? (open ? "Hide progress messages" : "Show progress messages")}
+           className="ui-pill"
+diff --git a/src/components/VerifyCard.test.ts b/src/components/VerifyCard.test.ts
+index edb440953..51f19b05f 100644
+--- a/src/components/VerifyCard.test.ts
++++ b/src/components/VerifyCard.test.ts
+@@ -14,7 +14,7 @@ const steps: RunStep[] = [
+ const TAG = `>${t("chat.verify.verifiedTag")}<`;
+ const noop = () => undefined;
+ const render = (props: Partial<Parameters<typeof VerifyCard>[0]> = {}) =>
+-  renderToStaticMarkup(createElement(VerifyCard, { steps, canSave: true, skill: null, onDismiss: noop, onSave: noop, ...props }));
++  renderToStaticMarkup(createElement(VerifyCard, { steps, canSave: true, skill: null, onDismiss: noop, onSave: noop, storeKey: "test:thread:run", ...props }));
+ 
+ describe("VerifyCard", () => {
+   it("renders nothing without steps", () => {
+diff --git a/src/components/VerifyCard.tsx b/src/components/VerifyCard.tsx
+index 74fb5ace9..93933677a 100644
+--- a/src/components/VerifyCard.tsx
++++ b/src/components/VerifyCard.tsx
+@@ -1,9 +1,10 @@
+ import { BookmarkPlus, CheckCircle2, ChevronDown, ChevronUp, Circle, ListChecks, Loader2, X, XCircle } from "lucide-react";
+-import { useState } from "react";
++import { useEffect, useState } from "react";
+ 
+ import { cn } from "@/lib/cn";
+ import { t } from "@/lib/i18n";
+ import { runSummary, type RunSkill, type RunStep } from "@/lib/verify-steps";
++import { runCardCollapsed, setRunCardCollapsed } from "@/lib/run-open-state";
+ 
+ function StatusIcon({ status }: { status: RunStep["status"] }) {
+   const className = "size-4 shrink-0";
+@@ -28,16 +29,32 @@ export function VerifyCard({
+   skill,
+   onDismiss,
+   onSave,
++  storeKey,
+ }: {
+   steps: RunStep[];
+   canSave: boolean;
+   skill: RunSkill;
+   onDismiss: () => void;
+   onSave: () => void;
++  /** A7: llave estable del hilo para recordar el colapso entre reaperturas. */
++  storeKey: string;
+ }) {
++  // 0027 (A7): recuerda si el usuario colapso el cuadro; una vez colapsado se queda
++  // colapsado (aunque lleguen actividades nuevas) y solo se reabre con su clic.
+   const defaultCollapsed = steps.length > 6;
+-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
++  const [collapsed, setCollapsed] = useState(() => runCardCollapsed(storeKey) ?? defaultCollapsed);
++  useEffect(() => {
++    const saved = runCardCollapsed(storeKey);
++    if (saved !== undefined) setCollapsed(saved);
++  }, [storeKey]);
+   if (steps.length === 0) return null;
++  const toggle = () => {
++    setCollapsed((current) => {
++      const next = !current;
++      setRunCardCollapsed(storeKey, next);
++      return next;
++    });
++  };
+   const toggleLabel = collapsed ? t("chat.verify.expand") : t("chat.verify.collapse");
+   return (
+     <section
+@@ -54,7 +71,7 @@ export function VerifyCard({
+         </div>
+         <button
+           type="button"
+-          onClick={() => setCollapsed((current) => !current)}
++          onClick={toggle}
+           aria-expanded={!collapsed}
+           aria-label={toggleLabel}
+           title={toggleLabel}
+diff --git a/src/components/chat-bubble.ts b/src/components/chat-bubble.ts
+index 5fd6b9025..69df60018 100644
+--- a/src/components/chat-bubble.ts
++++ b/src/components/chat-bubble.ts
+@@ -135,3 +135,10 @@ export function simpleRowLayout(items: readonly TranscriptItem[], { botId, showT
+   });
+   return { joins: bubbleJoins(slots), tucks: cardTucks(slots) };
+ }
++
++/** A10 (v140): con "Color my messages" encendido, la burbuja del usuario y la final del bot
++ *  llevan un borde de 1 px del color del bot. Poner en false para revertir el parche entero. */
++export const USER_TINT_BORDER = true;
++
++/** A10: 1 px del color del bot (el mismo grosor de linea que dibujan las tablas). */
++export const TINT_BORDER_CLASS = "border";
+diff --git a/src/lib/activity-runs.ts b/src/lib/activity-runs.ts
+index c55115605..20db71207 100644
+--- a/src/lib/activity-runs.ts
++++ b/src/lib/activity-runs.ts
+@@ -45,6 +45,11 @@ type TurnFold = Extract<TranscriptItem, { kind: "turn" }>;
+ const isNarration = (message: Message, turnId: string) =>
+   message.role === "bot" && message.kind === "text" && message.turnId === turnId && !message.turnTerminal;
+ 
++/** A4 (v140): una nota intermedia del bot (narracion del turno) — se dibuja sin fondo y 2 px menor. */
++export function isNarrationText(message: Message): boolean {
++  return message.role === "bot" && message.kind === "text" && Boolean(message.turnId) && !message.turnTerminal;
++}
++
+ /** A turn starts with the person's last message before its first row, or with that row when nobody wrote first. */
+ function turnStartedAt(messages: readonly Message[], firstIndex: number, fallback: number): number {
+   for (let i = firstIndex - 1; i >= 0; i -= 1) if (messages[i]!.role === "user") return messages[i]!.at;
+diff --git a/src/lib/remark-user-format.ts b/src/lib/remark-user-format.ts
+new file mode 100644
+index 000000000..454941049
+--- /dev/null
++++ b/src/lib/remark-user-format.ts
+@@ -0,0 +1,53 @@
++import type { Message } from "@/state/store";
++
++type MdNode = {
++  type: string;
++  value?: string;
++  children?: MdNode[];
++  data?: { hName?: string; hProperties?: Record<string, string> };
++};
++
++/** Personalizacion Manager (0026 / A3, v140): subrayado con `++texto++`.
++ *  Un plugin local, sin dependencias extra: sustituye en los nodos de texto
++ *  las corridas `++x++` por un nodo que se pinta como <u>. */
++export function remarkUnderline() {
++  return (tree: MdNode) => {
++    const walk = (node: MdNode) => {
++      if (!node.children) return;
++      if (["link", "linkReference", "code", "inlineCode"].includes(node.type)) return;
++      node.children = node.children.flatMap((child) => {
++        if (child.type !== "text" || !child.value) { walk(child); return [child]; }
++        const value = child.value;
++        if (!value.includes("++")) return [child];
++        const out: MdNode[] = [];
++        let rest = value;
++        while (true) {
++          const start = rest.indexOf("++");
++          if (start === -1) { if (rest) out.push({ type: "text", value: rest }); break; }
++          const end = rest.indexOf("++", start + 2);
++          if (end === -1) { out.push({ type: "text", value: rest }); break; }
++          const inner = rest.slice(start + 2, end);
++          if (start > 0) out.push({ type: "text", value: rest.slice(0, start) });
++          if (inner) out.push({ type: "underline", data: { hName: "u" }, children: [{ type: "text", value: inner }] });
++          rest = rest.slice(end + 2);
++        }
++        return out.length ? out : [child];
++      });
++    };
++    walk(tree);
++  };
++}
++
++export type { Message };
++
++/** A3: ¿el mensaje del usuario trae formato de markdown? Si no, se pinta como texto
++ *  literal (conserva la direccion por linea via `.chat-text`); si si, se renderiza. */
++export function userTextHasMarkdown(text: string): boolean {
++  if (text.includes("**") || text.includes("__") || text.includes("`") || text.includes("~~") || text.includes("++")) return true;
++  if (/^\s*(?:[-*+]|\d{1,3}[.)])\s+\S/m.test(text)) return true;
++  if (/^\s*#{1,6}\s+\S/m.test(text)) return true;
++  if (/\]\([^)\s]+\)/.test(text)) return true;
++  if (/(^|[\s(])\*[^*\s][^*]*\*(?=[\s).,!?:;]|$)/.test(text)) return true;
++  if (/(^|[\s(])_[^_\s][^_]*_(?=[\s).,!?:;]|$)/.test(text)) return true;
++  return false;
++}
+diff --git a/src/lib/run-open-state.ts b/src/lib/run-open-state.ts
+new file mode 100644
+index 000000000..6411976d6
+--- /dev/null
++++ b/src/lib/run-open-state.ts
+@@ -0,0 +1,35 @@
++/** Personalizacion Manager (0027 / A7): el cuadro de actividades ("This run") recuerda
++ *  si lo colapsaste. Una vez que el usuario lo colapsa, se queda colapsado aunque
++ *  lleguen actividades nuevas; solo se reabre con su clic en el boton de expandir
++ *  (o cuando una busqueda apunta a un paso de adentro). El estado vive aqui, en
++ *  memoria del modulo, llave por corrida, para sobrevivir re-renderizados y
++ *  remontajes del transcript dentro de la sesion. */
++const openState = new Map<string, boolean>();
++
++export function runOpenChoice(runId: string): boolean | undefined {
++  return openState.get(runId);
++}
++
++export function setRunOpenChoice(runId: string, open: boolean): void {
++  openState.set(runId, open);
++  if (openState.size > 2000) {
++    const first = openState.keys().next().value;
++    if (first !== undefined) openState.delete(first);
++  }
++}
++
++/** A7: estado de colapso del cuadro "This run" (VerifyCard), por hilo. `undefined` = sin
++ *  eleccion del usuario todavia; el componente decide su default por longitud. */
++const cardCollapsed = new Map<string, boolean>();
++
++export function runCardCollapsed(key: string): boolean | undefined {
++  return cardCollapsed.get(key);
++}
++
++export function setRunCardCollapsed(key: string, collapsed: boolean): void {
++  cardCollapsed.set(key, collapsed);
++  if (cardCollapsed.size > 500) {
++    const first = cardCollapsed.keys().next().value;
++    if (first !== undefined) cardCollapsed.delete(first);
++  }
++}
+diff --git a/src/styles.css b/src/styles.css
+index 6ed924cb8..e2b3c51f8 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -360,7 +360,7 @@
+   --color-accent-text: #96551f;   /* for links on a light ground — 5.81:1 */
+   --color-focus: #96551f;         /* the ring rides the accent, not Grok blue */
+   --color-accent-ink: #ffffff;
+-  --color-bubble-user: #f2e9dc;   /* your own messages in the badge beige */
++  --color-bubble-user: #ffffff;   /* 0025 (A6, v140): BLANCO, igual que la burbuja del agente (#ffffff = --color-card) */
+   --color-bubble-user-ink: #1a1a18;   /* = ink: unchanged */
+ 
+   --color-success: #3f6b47;
+@@ -3065,6 +3065,13 @@ button:disabled.bg-danger {
+ .user-bubble-colored {
+   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16);
+ }
++
++/* A6 + A10 (v140): en Atelier el fondo de MIS mensajes es BLANCO aunque "Color my messages"
++   este encendido (el color del bot se indica con el borde de A10, no con el relleno). */
++[data-skin="atelier"] .user-bubble-colored {
++  background-color: #ffffff !important;
++  background-image: none !important;
++}
+ [data-chat-bubble="simple"].user-bubble-colored {
+   box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.16);
+ }

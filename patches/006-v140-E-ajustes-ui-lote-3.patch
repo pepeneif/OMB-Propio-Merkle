@@ -1,0 +1,748 @@
+diff --git a/src/components/ChatMoreMenu.test.ts b/src/components/ChatMoreMenu.test.ts
+index f60d8402e..c7e8a888a 100644
+--- a/src/components/ChatMoreMenu.test.ts
++++ b/src/components/ChatMoreMenu.test.ts
+@@ -13,6 +13,7 @@ const fixture = vi.hoisted(() => {
+     dispatch: vi.fn(),
+     inspectorOpen: false,
+     find: vi.fn(),
++    modelPicker: vi.fn(() => true),
+   };
+ });
+ vi.mock("@/state/store", async (importOriginal) => {
+@@ -25,6 +26,10 @@ vi.mock("@/lib/chat-find", async (importOriginal) => ({
+   ...await importOriginal<typeof import("@/lib/chat-find")>(),
+   requestChatFind: fixture.find,
+ }));
++vi.mock("@/lib/model-picker-open", async (importOriginal) => ({
++  ...await importOriginal<typeof import("@/lib/model-picker-open")>(),
++  requestModelPicker: fixture.modelPicker,
++}));
+ vi.mock("./SidebarPopoverMenu", async (importOriginal) => ({
+   ...await importOriginal<typeof import("./SidebarPopoverMenu")>(),
+   SidebarPopoverMenu: (props: { ariaLabel: string; items: SidebarMenuItem[]; placement?: string; openOnHover?: boolean; renderTrigger: (state: { open: boolean }) => React.ReactNode }) => {
+@@ -66,6 +71,8 @@ beforeEach(() => {
+   fixture.inspectorOpen = false;
+   fixture.dispatch.mockClear();
+   fixture.find.mockClear();
++  fixture.modelPicker.mockReset();
++  fixture.modelPicker.mockReturnValue(true);
+ });
+ 
+ describe("ChatMoreMenu, the round ⋯ for the bot panel", () => {
+@@ -81,7 +88,7 @@ describe("ChatMoreMenu, the round ⋯ for the bot panel", () => {
+ 
+   it("offers threads in Simple mode, and Usage and the Inspector unlocked", () => {
+     const menu = menuOf(createElement(ChatMoreMenu, { bot }));
+-    expect(keys(menu.items)).toEqual(["find", "new-thread", "threads", "copy", "download", "activity", "inspector"]);
++    expect(keys(menu.items)).toEqual(["find", "model", "reasoning", "new-thread", "threads", "copy", "download", "activity", "inspector"]);
+     for (const item of menu.items) {
+       expect(item.disabled, item.key).toBeFalsy();
+       expect(item.heading ?? "", item.key).not.toBe("In Advanced mode");
+@@ -117,10 +124,26 @@ describe("ChatMoreMenu, the round ⋯ for the bot panel", () => {
+ 
+   it("leaves All threads out while the bot has one thread", () => {
+     const single = { ...bot, threadId: "main", tasks: [task("main", "Our chat", 1), task("routine", "Morning digest", 5, { routineRunId: "run-1" })] };
+-    expect(keys(menuOf(createElement(ChatMoreMenu, { bot: single })).items)).toEqual(["find", "new-thread", "copy", "download", "activity", "inspector"]);
++    expect(keys(menuOf(createElement(ChatMoreMenu, { bot: single })).items)).toEqual(["find", "model", "reasoning", "new-thread", "copy", "download", "activity", "inspector"]);
+     expect(keys(menuOf(createElement(ChatMoreMenu, { bot: { ...bot, tasks: undefined } })).items)).not.toContain("threads");
+   });
+ 
++  it("opens the model picker directly from the model row, without opening Settings", () => {
++    const menu = menuOf(createElement(ChatMoreMenu, { bot }));
++    expect(keys(menu.items)).toContain("model");
++    menu.items.find((item) => item.key === "model")!.onSelect();
++    expect(fixture.modelPicker).toHaveBeenCalledWith("side");
++    expect(fixture.dispatch).not.toHaveBeenCalled();
++  });
++
++  it("falls back to opening Settings when no picker is mounted for the thread", () => {
++    fixture.modelPicker.mockReturnValue(false);
++    const menu = menuOf(createElement(ChatMoreMenu, { bot }));
++    menu.items.find((item) => item.key === "model")!.onSelect();
++    expect(fixture.modelPicker).toHaveBeenCalledWith("side");
++    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "toggleSettings", open: true, section: "model" });
++  });
++
+   it("opens the chat's find bar for the thread on screen", () => {
+     const menu = menuOf(createElement(ChatMoreMenu, { bot }));
+     menu.items.find((item) => item.key === "find")!.onSelect();
+@@ -155,7 +178,7 @@ describe("ChatHeaderMenu, Advanced mode's header ⋯", () => {
+   it("keeps main's items, trigger and hover menu below the header", () => {
+     fixture.advanced = true;
+     const menu = menuOf(createElement(ChatHeaderMenu, { bot }));
+-    expect(keys(menu.items)).toEqual(["find", "copy", "download", "activity", "inspector"]);
++    expect(keys(menu.items)).toEqual(["find", "model", "reasoning", "copy", "download", "activity", "inspector"]);
+     expect(menu.items.find((item) => item.key === "inspector")).toMatchObject({ separatorBefore: true });
+     expect(menu.items.every((item) => !item.disabled && item.heading !== "In Advanced mode")).toBe(true);
+     expect(menu).toMatchObject({ placement: "below", openOnHover: true });
+diff --git a/src/components/ChatMoreMenu.tsx b/src/components/ChatMoreMenu.tsx
+index 507ed5b3c..c23ea97d3 100644
+--- a/src/components/ChatMoreMenu.tsx
++++ b/src/components/ChatMoreMenu.tsx
+@@ -4,6 +4,7 @@ import { currentTaskBot, openBotThread, useStore, visibleMessages, type Bot } fr
+ import { useAdvancedMode } from "@/lib/interface-mode";
+ import { useShowThreads } from "@/lib/thread-preferences";
+ import { requestChatFind, useChatFindOpen } from "@/lib/chat-find";
++import { requestModelPicker } from "@/lib/model-picker-open";
+ import { usageSummary } from "@/lib/chat-usage-summary";
+ import {
+   copyTranscriptToClipboard,
+@@ -38,6 +39,9 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
+   const threads = showThreads ? [] : orderedThreadList((profile.tasks ?? []).filter((task) => !task.routineRunId));
+   const selection = profile.modelSelection;
+   // A18 (v140): el menu muestra el modelo y la intensidad; en movil ya lo hacia, ahora tambien en escritorio.
++  // A20 (v140): al elegir el modelo o la intensidad se abre el selector de modelos del chat (igual que la 130), no
++  // los ajustes; si no hay selector montado para este hilo, cae a los ajustes.
++  const openModelPicker = () => { if (!requestModelPicker(bot.threadId)) openBotSettings(dispatch, "model"); };
+   const modelName = selection
+     ? state.instances.find((candidate) => candidate.instanceId === selection.instanceId)?.models?.options?.find((option) => option.id === selection.model)?.label ?? selection.model
+     : "";
+@@ -56,7 +60,7 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
+       label: t("model.simple.model"),
+       icon: <Cpu size={16} />,
+       value: modelName,
+-      onSelect: () => openBotSettings(dispatch, "model"),
++      onSelect: openModelPicker,
+     } satisfies SidebarMenuItem]),
+     {
+       key: "computer",
+@@ -81,14 +85,14 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
+       label: t("model.simple.model"),
+       icon: <Cpu size={16} />,
+       value: modelName,
+-      onSelect: () => openBotSettings(dispatch, "model"),
++      onSelect: openModelPicker,
+     },
+     {
+       key: "reasoning",
+       label: t("model.effort.label"),
+       icon: <Gauge size={16} />,
+       value: selection?.effort ?? "",
+-      onSelect: () => openBotSettings(dispatch, "model"),
++      onSelect: openModelPicker,
+     },
+     ...phoneScreen,
+     ...(showThreads ? [] : [{
+diff --git a/src/components/ChatView.controls.test.ts b/src/components/ChatView.controls.test.ts
+index 5de1b9676..ce3d3ccbb 100644
+--- a/src/components/ChatView.controls.test.ts
++++ b/src/components/ChatView.controls.test.ts
+@@ -47,7 +47,8 @@ vi.mock("./CitationUI", async (importOriginal) => ({
+ }));
+ vi.mock("./ModelPicker", () => ({ ModelPicker: (props: ComponentProps<typeof ModelPicker>) => {
+   fixture.model = props;
+-  return createElement("span", { "data-test-model-control": true });
++  // A hidden picker (A20, the chat's ⋯ opens it) draws no visible control: only its menu, on demand.
++  return createElement("span", { "data-test-model-control": props.hideTrigger ? undefined : true });
+ } }));
+ vi.mock("./ApprovalModeSelector", () => ({ ApprovalModeSelector: (props: ComponentProps<typeof ApprovalModeSelector>) => {
+   fixture.approval = props;
+@@ -131,7 +132,9 @@ describe("the header's right side", () => {
+   it("keeps Advanced mode's computer and ⋯ in view, with the model inside ⋯ and the inspector unlocked (A18)", () => {
+     fixture.advanced = true;
+     const { markup } = header();
++    // A18: no model chip of its own; A20: a hidden picker the ⋯ menu opens directly, so no visible control either.
+     expect(markup).not.toContain("data-test-model-control");
++    expect(fixture.model?.hideTrigger).toBe(true);
+     expect(markup).toContain('data-tour="computer"');
+     expect(markup).toContain('data-testid="chat-more"');
+     const more = fixture.menus.find((menu) => menu.ariaLabel === "More")!;
+@@ -583,6 +586,7 @@ describe("thread control placement", () => {
+   it("keeps permissions inside the composer pill, with the model in the ⋯ menu (A18)", () => {
+     const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
+     expect(markup).not.toContain("data-test-model-control");
++    expect(fixture.model?.hideTrigger).toBe(true);
+     expect(markup.indexOf('data-tour="composer"')).toBeGreaterThan(-1);
+     expect(markup.indexOf("data-test-approval-control")).toBeGreaterThan(markup.indexOf('data-tour="composer"'));
+     expect(markup.indexOf("data-test-approval-control")).toBeLessThan(markup.indexOf("<textarea"));
+diff --git a/src/components/ChatView.tsx b/src/components/ChatView.tsx
+index aeb142329..13128bdf0 100644
+--- a/src/components/ChatView.tsx
++++ b/src/components/ChatView.tsx
+@@ -95,7 +95,7 @@ import { CompactionChip, DigestChip } from "./DigestChip";
+ import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole } from "./BotRole";
+ import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill";
+ import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
+-import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
++import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { ModelPicker } from "./ModelPicker"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
+ import { useChatFindRequests } from "@/lib/chat-find";
+ import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
+ import { SpeakButton } from "./SpeakButton";
+@@ -824,7 +824,7 @@ const MessagesList = memo(function MessagesList({
+   );
+ });
+ 
+-const CHATHEAD_PILL = `flex h-9 min-w-0 items-center gap-2 rounded-full py-0.5 pl-1.5 text-ink ${ELEVATED_FLOAT}`;
++const CHATHEAD_PILL = `flex h-9 min-w-0 items-center gap-2 rounded-full py-0.5 pl-3 text-ink ${ELEVATED_FLOAT}`;
+ 
+ export function ChatView({ bot: profile }: { bot: Bot }) {
+   const bot = useMemo(() => currentTaskBot(profile), [profile]);
+@@ -1087,7 +1087,9 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+           )}
+           <ThreadContextWarning bot={bot} messages={messages} />
+           <EngineLimitNotice engine={bot.modelSelection?.instanceId} />
+-          {/* A18 (v140): el modelo y la intensidad viven ahora dentro del menu ⋯. */}
++          {/* A18 (v140): el modelo y la intensidad viven ahora dentro del menu ... */}
++          {/* A20 (v140): el selector de modelos de la 130, invisible, para que el menu ... lo abra directo. */}
++          {advanced && !remoteClient && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} hideTrigger />}
+           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
+           {!phone && !simpleHead && (
+             <>
+diff --git a/src/components/ModelPicker.tsx b/src/components/ModelPicker.tsx
+index bb322d123..6240e9d6e 100644
+--- a/src/components/ModelPicker.tsx
++++ b/src/components/ModelPicker.tsx
+@@ -33,6 +33,7 @@ import { t } from "@/lib/i18n";
+ import { COMPACT_SQUARE } from "@/lib/compact-chip";
+ import { useAiSwitch } from "@/lib/ai-switch";
+ import { usePickerPane } from "@/lib/model-picker-pane";
++import { useModelPickerOpen } from "@/lib/model-picker-open";
+ import { threadsOnOwnModel } from "../../shared/thread-model";
+ import { ThreadModelsLine } from "./ThreadModelsLine";
+ import { Select } from "./Select";
+@@ -214,6 +215,7 @@ export function ModelPicker({
+   className,
+   contained = false,
+   label,
++  hideTrigger = false,
+   size = "md",
+ }: {
+   bot: Bot;
+@@ -221,6 +223,8 @@ export function ModelPicker({
+   className?: string;
+   contained?: boolean;
+   label?: ReactNode;
++  /** The trigger is not drawn: the picker only opens when something else asks it to (the chat's ⋯ menu). */
++  hideTrigger?: boolean;
+   size?: "sm" | "md";
+ }) {
+   const { state, dispatch: storeDispatch, refreshInstances, refreshModels: refreshInstanceModels } = useStore();
+@@ -609,6 +613,10 @@ export function ModelPicker({
+     title: `${summary}${followLine}${attentionLine}${busyLine}`,
+   };
+ 
++  // A request from the chat's ⋯ menu opens this picker directly, where it is mounted (the chat header in Advanced
++  // mode), rather than sending the person to Settings. The row only names the model in its own words.
++  useModelPickerOpen(threadId, openMenu);
++
+   const trigger = advanced ? (
+     <button
+       {...triggerProps}
+@@ -1003,12 +1011,13 @@ export function ModelPicker({
+   return (
+     <div ref={rootRef} className={cn(contained ? "w-full" : "relative", className)}>
+       {contained ? (
+-        <div className="flex items-center justify-between gap-4">
++        hideTrigger ? <button {...triggerProps} aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute size-0 opacity-0" /> : <div className="flex items-center justify-between gap-4">
+           {label}
+           {trigger}
+         </div>
+       ) : (
+-        trigger
++        // Hidden: an invisible zero-size anchor where the picker would sit, so its popover places here (the header).
++        hideTrigger ? <button {...triggerProps} aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute size-0 opacity-0" /> : trigger
+       )}
+       {menu && floating ? createPortal(menu, document.body) : menu}
+       {!contained && changedBotModel && !open && ownModelThreads > 0 && (
+diff --git a/src/components/Sidebar.header.test.ts b/src/components/Sidebar.header.test.ts
+index 492e1d9d7..5479ca24f 100644
+--- a/src/components/Sidebar.header.test.ts
++++ b/src/components/Sidebar.header.test.ts
+@@ -220,7 +220,7 @@ describe("sidebar top row", () => {
+     expect(top).not.toContain("data-sidebar-top-buttons");
+     expect(top).not.toContain("data-workspace-switcher");
+     expect(top.indexOf('aria-label="Search bots and messages"')).toBeLessThan(top.indexOf('aria-label="New or share"'));
+-    expect(top).toMatch(/data-sidebar-rail-top="true" class="flex flex-col items-center gap-2 pt-1"/);
++    expect(top).toMatch(/data-sidebar-rail-top="true" class="flex flex-col items-center gap-\[7px\] pt-1"/);
+     expect(top).toMatch(/aria-label="New or share" class="[^"]*\bsize-9\b[^"]*\brounded-full\b/);
+     const foot = html.slice(html.indexOf("data-sidebar-rail-footer"));
+     const at = (marker: string) => {
+@@ -251,9 +251,9 @@ describe("sidebar top row", () => {
+     const row = topRow(html);
+     expect(row).not.toContain("data-workspace-switcher");
+     expect(row).not.toContain("data-sidebar-top-spacer");
+-    expect(classesOf(row, "data-sidebar-top-row")).toEqual(["flex", "items-center", "flex-col", "gap-1", "px-2", "pt-3.5", "pb-1"]);
++    expect(classesOf(row, "data-sidebar-top-row")).toEqual(["flex", "items-center", "flex-col", "gap-[3.5px]", "px-2", "pt-3.5", "pb-1"]);
+     expect(row).not.toContain("data-traffic-light-space");
+-    expect(classesOf(row, "data-sidebar-top-buttons")).toEqual(["relative", "flex", "shrink-0", "items-center", "flex-col", "gap-1"]);
++    expect(classesOf(row, "data-sidebar-top-buttons")).toEqual(["relative", "flex", "shrink-0", "items-center", "flex-col", "gap-[3.5px]"]);
+     expect(html.match(/Switch server:/g)).toHaveLength(1);
+   });
+ });
+diff --git a/src/components/Sidebar.simple-mode.test.ts b/src/components/Sidebar.simple-mode.test.ts
+index 28941c5b5..a93a6ecbf 100644
+--- a/src/components/Sidebar.simple-mode.test.ts
++++ b/src/components/Sidebar.simple-mode.test.ts
+@@ -85,11 +85,11 @@ describe("bot-first sidebar", () => {
+   });
+ 
+   it.each([
+-    { advanced: true, enabled: true, density: "comfortable", size: 32, spacing: ["gap-2", "py-2", "pl-6"] },
+-    { advanced: true, enabled: true, density: "icons", size: 44, spacing: ["justify-center", "px-1", "py-1.5"] },
+-    { advanced: true, enabled: false, density: "comfortable", size: 44, spacing: ["gap-3", "py-2", "pl-2.5", "pr-9"] },
+-    { advanced: false, enabled: false, density: "comfortable", size: 42, spacing: ["gap-2", "rounded-[10px]", "pl-2", "pr-2", "md:h-[54px]"] },
+-    { advanced: false, enabled: false, density: "icons", size: 36, spacing: ["h-[54px]", "justify-center"] },
++    { advanced: true, enabled: true, density: "comfortable", size: 29, spacing: ["gap-2", "py-2", "pl-6"] },
++    { advanced: true, enabled: true, density: "icons", size: 40, spacing: ["justify-center", "px-1", "py-1.5"] },
++    { advanced: true, enabled: false, density: "comfortable", size: 40, spacing: ["gap-3", "py-2", "pl-2.5", "pr-9"] },
++    { advanced: false, enabled: false, density: "comfortable", size: 38, spacing: ["gap-2", "rounded-[10px]", "pl-2", "pr-2", "md:h-[54px]"] },
++    { advanced: false, enabled: false, density: "icons", size: 32, spacing: ["h-[54px]", "justify-center"] },
+   ] as const)("sizes bot portraits and row spacing in $density density with threads $enabled (advanced $advanced)", ({ advanced, enabled, density, size, spacing }) => {
+     fixture.advanced = advanced;
+     fixture.showThreads = enabled;
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index a63333e14..def007c1f 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -709,7 +709,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
+   const simpleRow = !advanced && !showThreads && density === "comfortable";
+   const simpleList = !advanced && !iconOnly;
+   const railTile = iconOnly && !advanced;
+-  const avatarSize = iconOnly ? (railTile ? 36 : 44) : showThreads ? 32 : simpleRow ? 36 : 44;
++  const avatarSize = iconOnly ? (railTile ? 32 : 40) : showThreads ? 29 : simpleRow ? 32 : 40;
+   const tooltip = simpleList ? botTooltip(bot, instances) : undefined;
+   const visible = useVisibleMessages(bot);
+   const last = lastNonReceipt(visible);
+@@ -1272,7 +1272,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+         className={cn(
+           "flex items-center",
+           // The corner is no drag region and takes no clicks but its buttons': the tiles rise into the rest of it.
+-          density === "icons" ? "flex-col gap-1 px-2 pt-3.5 pb-1" : corner ? "pointer-events-none relative h-[34px] items-start justify-end px-1.5 pt-1.5" : simpleDesk ? "relative h-[60px] items-start pl-4 pr-4 pt-3" : "relative pl-4 pr-2",
++          density === "icons" ? "flex-col gap-[3.5px] px-2 pt-3.5 pb-1" : corner ? "pointer-events-none relative h-[34px] items-start justify-end px-1.5 pt-1.5" : simpleDesk ? "relative h-[60px] items-start pl-4 pr-4 pt-3" : "relative pl-4 pr-2",
+           density !== "icons" && !simpleDesk && !lights && "h-12 max-md:h-16",
+         )}
+         style={corner ? undefined : density !== "icons" && lights && !simpleDesk ? { ...windowDragStyle, height: MAC_TRAFFIC_LIGHT_CENTER_Y * 2 } : windowDragStyle}
+@@ -1284,7 +1284,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+           // beside the page or not.
+           <div aria-hidden="true" data-traffic-light-space className={density === "icons" ? "h-5 w-full" : "w-[72px] shrink-0 md:w-[calc(72px_-_var(--rail-beside,0px))]"} />
+         ) : null}{!phone && !framed && <ChromeRailToggle advanced={advanced} icons={density === "icons"} style={windowNoDragStyle} />}
+-        {rail && <div data-sidebar-rail-top className="flex flex-col items-center gap-2 pt-1" style={windowNoDragStyle}>
++        {rail && <div data-sidebar-rail-top className="flex flex-col items-center gap-[7px] pt-1" style={windowNoDragStyle}>
+           <button type="button" onClick={railSearch} aria-label={t("sidebar.searchAria")} title={t("sidebar.searchAria")} className={SIMPLE_TOP_BUTTON}>
+             <Search size={18} strokeWidth={1.5} aria-hidden="true" />
+           </button>
+@@ -1300,7 +1300,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
+         ))}
+         {!rail && <div
+           data-sidebar-top-buttons
+-          className={cn("relative flex shrink-0 items-center", density === "icons" ? "flex-col gap-1" : corner ? "pointer-events-auto" : simpleDesk ? "gap-2" : simple ? "gap-1 pl-0.5" : "ml-0.5 gap-0.5")}
++          className={cn("relative flex shrink-0 items-center", density === "icons" ? "flex-col gap-[3.5px]" : corner ? "pointer-events-auto" : simpleDesk ? "gap-2" : simple ? "gap-1 pl-0.5" : "ml-0.5 gap-0.5")}
+           style={windowNoDragStyle}
+         >
+           {simpleDesk && <SidebarSearchToggle ref={searchToggleRef} corner={corner} open={searchShown} onToggle={() => (searchShown ? closeSearch() : setSearchOpen(true))} />}
+diff --git a/src/components/SidebarFooter.tsx b/src/components/SidebarFooter.tsx
+index 3dde7a39e..7dcd3deff 100644
+--- a/src/components/SidebarFooter.tsx
++++ b/src/components/SidebarFooter.tsx
+@@ -59,7 +59,7 @@ export function SidebarFooter({ density, simple = false, owner = null, archived,
+   const { dispatch } = useStore();
+   if (simple) return <SimpleSidebarFooter owner={owner} archived={archived} />;
+   return (
+-    <div className={cn("pb-3 pt-2", density === "icons" ? "flex flex-col items-center gap-1 px-2" : "px-3")}>
++    <div className={cn("pb-3 pt-2", density === "icons" ? "flex flex-col items-center gap-[3.5px] px-2" : "px-3")}>
+       <SidebarFooterNav density={density} collapsed={toolsCollapsed} onToggleCollapsed={onToggleTools} />
+       {density === "icons" ? (
+         <>
+diff --git a/src/components/SidebarFooterNav.test.ts b/src/components/SidebarFooterNav.test.ts
+index aac1523b3..b9f7bd5a5 100644
+--- a/src/components/SidebarFooterNav.test.ts
++++ b/src/components/SidebarFooterNav.test.ts
+@@ -47,15 +47,15 @@ beforeEach(() => {
+ afterEach(() => vi.unstubAllGlobals());
+ 
+ describe("sidebar footer places", () => {
+-  it("leads Advanced mode's places with Automations, then Team map, with Apps beside the profile instead", () => {
++  it("leads Advanced mode's places with Automations, then Triggers, then Team map, with Apps beside the profile instead", () => {
+     fixture.advanced = true;
+     const { html } = render("comfortable");
+-    const order = ["automations", "team-map"].map((id) => html.indexOf(`data-sidebar-nav="${id}"`));
++    const order = ["automations", "triggers", "team-map"].map((id) => html.indexOf(`data-sidebar-nav="${id}"`));
+     expect(order.every((index) => index >= 0)).toBe(true);
+     expect(order).toEqual([...order].sort((a, b) => a - b));
+     expect(html).toContain(">Automations</span>");
++    expect(html).toContain(">Triggers</span>");
+     expect(html).not.toContain('data-sidebar-nav="routines"');
+-    expect(html).not.toContain('data-sidebar-nav="triggers"');
+     expect(html).not.toContain('data-sidebar-nav="apps"');
+   });
+ 
+@@ -67,6 +67,7 @@ describe("sidebar footer places", () => {
+     fixture.advanced = advanced;
+     const html = render("icons").html;
+     expect(html).toContain('aria-label="Automations" title="Automations"');
++    expect(html).toContain('aria-label="Triggers" title="Triggers"');
+     expect(html).toContain('aria-label="Team map" title="Team map"');
+     expect(html.indexOf('data-sidebar-nav="automations"')).toBeLessThan(html.indexOf('data-sidebar-nav="apps"'));
+   });
+@@ -79,15 +80,27 @@ describe("sidebar footer places", () => {
+     expect(html).not.toContain('data-sidebar-nav="team-map"');
+   });
+ 
+-  it("opens the Automations page through the store, and marks it current while open", () => {
++  it("opens the Automations page (schedules scope) through the store, and marks it current while open", () => {
+     fixture.advanced = true;
+     const { nodes: tree } = render("comfortable");
+     (tree.find((node) => node.props.id === "automations" && typeof node.props.onClick === "function")!.props.onClick as () => void)();
+-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "showRoutines", view: "list" });
++    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "showRoutines", view: "list", scope: "schedules" });
+     fixture.state.activeView = "routines";
++    fixture.state.routinesFocus = { scope: "schedules", nonce: 0 };
+     expect(render("comfortable").html).toMatch(/data-sidebar-nav="automations"[^>]*aria-current="page"/);
+   });
+ 
++  it("opens the Triggers page (triggers scope) through the store and marks it current while open", () => {
++    fixture.advanced = true;
++    const { nodes: tree } = render("comfortable");
++    const row = tree.find((node) => node.props.id === "triggers" && typeof node.props.onClick === "function")!;
++    (row.props.onClick as () => void)();
++    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "showRoutines", view: "list", scope: "triggers" });
++    fixture.state.activeView = "routines";
++    fixture.state.routinesFocus = { scope: "triggers", nonce: 0 };
++    expect(render("comfortable").html).toMatch(/data-sidebar-nav="triggers"[^>]*aria-current="page"/);
++  });
++
+   it("adds a row per pinned web panel after Team map, in Advanced mode only", () => {
+     fixture.panels = [{ id: "panel-1", name: "Fleet board", url: "http://127.0.0.1:7841/" }];
+     fixture.state = { ...fixture.state, activeView: "web-panel", webPanelId: "panel-1" };
+@@ -140,7 +153,7 @@ describe("sidebar footer places", () => {
+   it("draws icons with tooltips in the avatars-only density", () => {
+     fixture.advanced = true;
+     const { html } = render("icons");
+-    for (const label of ["Automations", "Team map"]) {
++    for (const label of ["Automations", "Triggers", "Team map"]) {
+       expect(html).toContain(`aria-label="${label}" title="${label}"`);
+       expect(html).not.toContain(`>${label}</span>`);
+     }
+@@ -154,7 +167,7 @@ describe("Tools header", () => {
+     expect(html).toContain(">Tools<");
+     expect(html).toContain('aria-expanded="true"');
+     expect(html.indexOf(">Tools<")).toBeLessThan(html.indexOf('data-sidebar-nav="automations"'));
+-    for (const id of ["automations", "team-map"]) expect(html).toContain(`data-sidebar-nav="${id}"`);
++    for (const id of ["automations", "triggers", "team-map"]) expect(html).toContain(`data-sidebar-nav="${id}"`);
+   });
+ 
+   it("keeps the Tools label and hides the rows when collapsed", () => {
+@@ -162,7 +175,7 @@ describe("Tools header", () => {
+     const { html } = render("comfortable", { collapsed: true });
+     expect(html).toContain(">Tools<");
+     expect(html).toContain('aria-expanded="false"');
+-    for (const id of ["automations", "team-map"]) expect(html).not.toContain(`data-sidebar-nav="${id}"`);
++    for (const id of ["automations", "triggers", "team-map"]) expect(html).not.toContain(`data-sidebar-nav="${id}"`);
+   });
+ 
+   it("toggles through the header", () => {
+@@ -239,7 +252,7 @@ describe("toolbar tools layout", () => {
+     const { html } = render("comfortable", { toolsLayout: "toolbar" });
+     expect(html).toContain('class="flex flex-row gap-1"');
+     expect(html).not.toContain("flex-col");
+-    for (const label of ["Automations", "Team map"]) {
++    for (const label of ["Automations", "Triggers", "Team map"]) {
+       expect(html).toContain(`aria-label="${label}" title="${label}"`);
+       expect(html).not.toContain(`>${label}</span>`);
+     }
+@@ -271,7 +284,7 @@ describe("toolbar tools layout", () => {
+ 
+   it("toolbar applies to Advanced mode's two places; Simple mode keeps them in the bottom bar instead", () => {
+     fixture.advanced = true;
+-    expect(render("comfortable", { toolsLayout: "toolbar" }).html.match(/data-sidebar-nav="/g)).toHaveLength(2);
++    expect(render("comfortable", { toolsLayout: "toolbar" }).html.match(/data-sidebar-nav="/g)).toHaveLength(3);
+     fixture.advanced = false;
+     expect(render("comfortable", { toolsLayout: "toolbar" }).html).toBe("");
+   });
+@@ -290,7 +303,7 @@ describe("toolbar tools layout", () => {
+     expect(unset).toContain('<div data-tour="tools">');
+     expect(unset).toContain('<nav aria-label="Tools" class="flex flex-col gap-0.5">');
+     expect(unset).not.toContain("flex-row");
+-    for (const label of ["Automations", "Team map"]) {
++    for (const label of ["Automations", "Triggers", "Team map"]) {
+       expect(unset).toContain(`>${label}</span>`);
+       expect(unset).not.toContain(`title="${label}"`);
+       expect(unset).not.toContain(`aria-label="${label}"`);
+diff --git a/src/components/SidebarFooterNav.tsx b/src/components/SidebarFooterNav.tsx
+index 9d7247f82..841cf7f41 100644
+--- a/src/components/SidebarFooterNav.tsx
++++ b/src/components/SidebarFooterNav.tsx
+@@ -1,4 +1,4 @@
+-import { FolderOpen, Globe, Puzzle, UsersRound, Zap } from "lucide-react";
++import { CalendarDays, FolderOpen, Globe, Network, Puzzle, Zap } from "lucide-react";
+ import type { ReactNode } from "react";
+ 
+ import { useAppTriggers } from "@/lib/app-triggers";
+@@ -126,10 +126,20 @@ export function SidebarFooterNav({
+     label={t("sidebar.nav.automations")}
+     tourId="nav-automations"
+     iconsOnly={iconsOnly || toolbar}
+-    active={state.activeView === "routines"}
++    active={state.activeView === "routines" && state.routinesFocus?.scope !== "triggers"}
+     attention={automationsNeedYou}
++    icon={(active) => <CalendarDays size={iconSize} className={tone(active)} />}
++    onClick={() => dispatch({ type: "showRoutines", view: "list", scope: "schedules" })}
++  />;
++  const triggersRow = <NavRow
++    id="triggers"
++    label={t("sidebar.nav.triggers")}
++    tourId="nav-triggers"
++    iconsOnly={iconsOnly || toolbar}
++    rail={rail}
++    active={state.activeView === "routines" && state.routinesFocus?.scope === "triggers"}
+     icon={(active) => <Zap size={iconSize} className={tone(active)} />}
+-    onClick={() => dispatch({ type: "showRoutines", view: "list" })}
++    onClick={() => dispatch({ type: "showRoutines", view: "list", scope: "triggers" })}
+   />;
+   const filesRow = useCloudFilesReady() && <NavRow
+     id="files"
+@@ -156,6 +166,7 @@ export function SidebarFooterNav({
+   const rows = (
+     <>
+       {automationsRow}
++      {triggersRow}
+       {appsRow}
+       {(advanced || iconsOnly) && (
+         <NavRow
+@@ -164,7 +175,7 @@ export function SidebarFooterNav({
+           tourId="team-tools"
+           iconsOnly={iconsOnly || toolbar}
+           active={state.activeView === "team-map"}
+-          icon={(active) => <UsersRound size={iconSize} className={tone(active)} />}
++          icon={(active) => <Network size={iconSize} className={tone(active)} />}
+           onClick={() => dispatch({ type: "showTeamMap" })}
+         />
+       )}
+diff --git a/src/components/SidebarPhoneBar.tsx b/src/components/SidebarPhoneBar.tsx
+index c5b92245f..1aa0705ae 100644
+--- a/src/components/SidebarPhoneBar.tsx
++++ b/src/components/SidebarPhoneBar.tsx
+@@ -1,4 +1,4 @@
+-import { FolderOpen, LayoutGrid, Puzzle, Search, UsersRound, X, Zap } from "lucide-react";
++import { CalendarDays, FolderOpen, LayoutGrid, Network, Puzzle, Search, X, Zap } from "lucide-react";
+ 
+ import { useCloudFilesReady } from "@/lib/cloud-files";
+ import { t } from "@/lib/i18n";
+@@ -19,15 +19,22 @@ export function SidebarPhoneBar({ query, onQuery }: { query: string; onQuery: (q
+     {
+       key: "automations",
+       label: t("sidebar.nav.automations"),
+-      icon: <Zap size={18} />,
+-      active: state.activeView === "routines",
++      icon: <CalendarDays size={18} />,
++      active: state.activeView === "routines" && state.routinesFocus?.scope !== "triggers",
+       attention: automationsNeedYou,
+-      onSelect: () => dispatch({ type: "showRoutines", view: "list" }),
++      onSelect: () => dispatch({ type: "showRoutines", view: "list", scope: "schedules" }),
++    },
++    {
++      key: "triggers",
++      label: t("sidebar.nav.triggers"),
++      icon: <Zap size={18} />,
++      active: state.activeView === "routines" && state.routinesFocus?.scope === "triggers",
++      onSelect: () => dispatch({ type: "showRoutines", view: "list", scope: "triggers" }),
+     },
+     {
+       key: "team-map",
+       label: t("sidebar.nav.teamMap"),
+-      icon: <UsersRound size={18} />,
++      icon: <Network size={18} />,
+       active: state.activeView === "team-map",
+       onSelect: () => dispatch({ type: "showTeamMap" }),
+     },
+diff --git a/src/components/SidebarProfileMenu.tsx b/src/components/SidebarProfileMenu.tsx
+index 9b6622abc..93a2dc4ef 100644
+--- a/src/components/SidebarProfileMenu.tsx
++++ b/src/components/SidebarProfileMenu.tsx
+@@ -19,7 +19,7 @@ import {
+   Settings as SettingsIcon,
+   Smartphone,
+   UserRound,
+-  UsersRound,
++  Network,
+   Zap,
+ } from "lucide-react";
+ 
+@@ -342,7 +342,7 @@ export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, o
+ }): SidebarMenuItem[] {
+   return [
+     { key: "automations", label: t("sidebar.nav.automations"), icon: <Zap size={16} />, active: activeView === "routines", attention: automationsNeedYou, onSelect: onAutomations },
+-    { key: "team-map", label: t("sidebar.nav.teamMap"), icon: <UsersRound size={16} />, active: activeView === "team-map", onSelect: onTeamMap },
++    { key: "team-map", label: t("sidebar.nav.teamMap"), icon: <Network size={16} />, active: activeView === "team-map", onSelect: onTeamMap },
+     ...(onFiles ? [{ key: "files", label: t("sidebar.nav.files"), icon: <FolderOpen size={16} />, active: activeView === "files", onSelect: onFiles }] : []),
+     ...(archived?.count ? [{ key: "archived", label: t("sidebar.archived.title"), icon: <Archive size={16} />, value: String(archived.count), onSelect: archived.open }] : []),
+   ];
+diff --git a/src/components/SidebarSimpleRail.tsx b/src/components/SidebarSimpleRail.tsx
+index 66ee6491c..7a9ac3eca 100644
+--- a/src/components/SidebarSimpleRail.tsx
++++ b/src/components/SidebarSimpleRail.tsx
+@@ -14,7 +14,7 @@ export function SimpleRailFooter({ owner = null, archived }: {
+   const place = useSimplePlace();
+   const account = useSimpleAccount(place, owner, archived);
+   return (
+-    <div data-sidebar-rail-footer="" className="relative flex flex-col items-center gap-2 px-2 pb-4 pt-2">
++    <div data-sidebar-rail-footer="" className="relative flex flex-col items-center gap-[7px] px-2 pb-4 pt-2">
+       <SidebarConnectApps circle />
+       <UpdateIndicator />
+       <SidebarProfileMenu iconOnly rail simple={account} />
+diff --git a/src/components/TriggersPage.tsx b/src/components/TriggersPage.tsx
+index b6904d173..0db98a45c 100644
+--- a/src/components/TriggersPage.tsx
++++ b/src/components/TriggersPage.tsx
+@@ -32,7 +32,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
+   const appTriggers = useAppTriggers();
+   const backButtonRef = useRef<HTMLButtonElement>(null);
+   const focus = state.routinesFocus;
+-  const view = focus?.view === "calendar" ? "calendar" : "list";
++  const scope = focus?.scope ?? "all";
++  const view = scope === "triggers" ? "list" : focus?.view === "calendar" ? "calendar" : "list";
+   const [openId, setOpenId] = useState<string | null>(focus?.section !== "logs" ? focus?.routineId ?? null : null);
+   const [botFilter, setBotFilter] = useState(focus?.botId ?? "all");
+   const [newText, setNewText] = useState<string | null>(null);
+@@ -48,8 +49,12 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
+   }, [focus]);
+   useEffect(() => { backButtonRef.current?.focus({ preventScroll: true }); }, []);
+ 
+-  const all = useMemo(() => automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, appTriggers: appTriggers.triggers, runs: state.routineRuns, bots: state.bots }),
+-    [state.routines, state.webhooks, appTriggers.triggers, state.routineRuns, state.bots, routinesOnly]);
++  const all = useMemo(() => {
++    const every = automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, appTriggers: appTriggers.triggers, runs: state.routineRuns, bots: state.bots });
++    if (scope === "schedules") return every.filter((automation) => automation.kind === "schedule");
++    if (scope === "triggers") return every.filter((automation) => automation.kind === "webhook" || automation.kind === "app");
++    return every;
++  }, [state.routines, state.webhooks, appTriggers.triggers, state.routineRuns, state.bots, routinesOnly, scope]);
+   const showFilter = all.length >= FILTER_FROM && new Set(all.map((automation) => automation.botId)).size > 1;
+   const listed = orderAutomations(all.filter((automation) => !showFilter || botFilter === "all" || automation.botId === botFilter));
+   const open = all.find((automation) => automation.id === openId) ?? null;
+@@ -72,7 +77,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
+       <header className={cn("shrink-0 border-b border-hairline/35 bg-app py-3 pr-4", macInset && !windowFramed(capabilities) && view === "calendar" ? "pl-[86px]" : view === "list" ? "pl-12 md:pl-4" : "pl-4")} style={windowDragStyle}>
+         <div className="flex flex-wrap items-center gap-2">
+           <button type="button" ref={backButtonRef} onClick={onBack} aria-label="Back" title="Back" className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised hover:text-ink" style={windowNoDragStyle}><ArrowLeft size={18} /></button>
+-          <h1 data-tour="automations-page" className="mr-1 text-[18px] font-semibold tracking-tight text-ink">{t("automations.title")}</h1>
++          <h1 data-tour="automations-page" className="mr-1 text-[18px] font-semibold tracking-tight text-ink">{scope === "triggers" ? t("sidebar.nav.triggers") : t("automations.title")}</h1>
+           <div className="ml-auto flex items-center gap-3" style={windowNoDragStyle}>
+             {showFilter && view === "list" && (
+               <Select size="sm" aria-label={t("automations.allBots")} value={botFilter} onChange={(event) => setBotFilter(event.target.value)} className="max-w-[180px]">
+@@ -80,14 +85,14 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
+                 {visibleBots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
+               </Select>
+             )}
+-            <div role="group" aria-label={t("automations.view")} className="flex items-center rounded-lg border border-hairline/50 bg-panel p-0.5">
++            {scope !== "triggers" && <div role="group" aria-label={t("automations.view")} className="flex items-center rounded-lg border border-hairline/50 bg-panel p-0.5">
+               {(["list", "calendar"] as const).map((option) => (
+                 <button key={option} type="button" aria-pressed={view === option} onClick={() => dispatch({ type: "showRoutines", view: option, botId: botFilter === "all" ? undefined : botFilter })}
+                   className={cn("rounded-md px-3 py-1 text-[13px] font-medium", view === option ? "bg-raised text-ink shadow-sm" : "text-ink-secondary hover:text-ink")}>
+                   {option === "list" ? t("automations.list") : t("automations.calendar")}
+                 </button>
+               ))}
+-            </div>
++            </div>}
+             <button type="button" onClick={() => setNewText("")} className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-accent-ink hover:brightness-110"><Plus size={15} aria-hidden="true" />{t("automations.new")}</button>
+           </div>
+         </div>
+diff --git a/src/lib/model-picker-open.test.ts b/src/lib/model-picker-open.test.ts
+new file mode 100644
+index 000000000..20833c255
+--- /dev/null
++++ b/src/lib/model-picker-open.test.ts
+@@ -0,0 +1,35 @@
++// @vitest-environment happy-dom
++import { act, createElement } from "react";
++import { createRoot, type Root } from "react-dom/client";
++import { afterEach, beforeEach, expect, it, vi } from "vitest";
++import { requestModelPicker, useModelPickerOpen } from "./model-picker-open";
++
++(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++let host: HTMLDivElement, root: Root;
++beforeEach(() => { host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
++afterEach(() => { act(() => root.unmount()); host.remove(); });
++
++function Picker({ threadId, open }: { threadId: string | undefined; open: () => void }) {
++  useModelPickerOpen(threadId, open);
++  return null;
++}
++
++it("answers false when nothing holds a picker for the thread", () => {
++  expect(requestModelPicker("side")).toBe(false);
++});
++
++it("opens the mounted picker for its own thread, and leaves other threads alone", async () => {
++  const open = vi.fn();
++  await act(async () => root.render(createElement(Picker, { threadId: "side", open })));
++  expect(requestModelPicker("other")).toBe(false);
++  expect(open).not.toHaveBeenCalled();
++  expect(requestModelPicker("side")).toBe(true);
++  expect(open).toHaveBeenCalledTimes(1);
++});
++
++it("stops answering once the picker unmounts", async () => {
++  const open = vi.fn();
++  await act(async () => root.render(createElement(Picker, { threadId: "side", open })));
++  await act(async () => root.render(createElement(Picker, { threadId: undefined, open })));
++  expect(requestModelPicker("side")).toBe(false);
++});
+diff --git a/src/lib/model-picker-open.ts b/src/lib/model-picker-open.ts
+new file mode 100644
+index 000000000..7535273e5
+--- /dev/null
++++ b/src/lib/model-picker-open.ts
+@@ -0,0 +1,32 @@
++import { useEffect, useRef } from "react";
++
++// The model picker belongs to the chat header (Advanced) or the bot panel (Simple), but the chat's ⋯ menu can name it:
++// a menu row that says the model's name opens that picker directly instead of sending the person to Settings. The
++// request names its thread, so a menu left over from another chat never opens this one's picker. Nothing mounted for
++// the thread answers, and the caller falls back to the plain settings link.
++const requests = new Set<(threadId: string) => boolean>();
++
++/** Opens the model picker of the chat showing this thread. Returns whether some picker took the request. */
++export function requestModelPicker(threadId: string): boolean {
++  let handled = false;
++  for (const request of Array.from(requests)) handled = request(threadId) || handled;
++  return handled;
++}
++
++/** The picker's side: opens for a request naming its thread, and answers that it did. */
++export function useModelPickerOpen(threadId: string | undefined, open: () => void): void {
++  const latest = useRef(open);
++  latest.current = open;
++  useEffect(() => {
++    if (!threadId) return;
++    const request = (target: string) => {
++      if (target !== threadId) return false;
++      latest.current();
++      return true;
++    };
++    requests.add(request);
++    return () => {
++      requests.delete(request);
++    };
++  }, [threadId]);
++}
+diff --git a/src/state/store.tsx b/src/state/store.tsx
+index 7b552bdc5..1f8ddab20 100644
+--- a/src/state/store.tsx
++++ b/src/state/store.tsx
+@@ -571,7 +571,7 @@ export interface AppState {
+   routines: Routine[];
+   routineRuns: RoutineRun[];
+   routinesLoadState: "loading" | "ready" | "error"; routineRunsSince: number | null;
+-  routinesFocus: { section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter; nonce: number };
++  routinesFocus: { section?: "schedule" | "logs"; view?: "calendar" | "list"; scope?: "all" | "schedules" | "triggers"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter; nonce: number };
+   webhooks: WebhookTrigger[];
+   webhookAttempts: WebhookAttempt[];
+   webhookIngress: WebhookIngressStatus | null;
+@@ -646,7 +646,7 @@ export type Action =
+   | { type: "sections"; sections: string[] }
+   | { type: "botsOrdered"; botIds: string[] }
+   | { type: "sectionDeleted"; section: string; sections: string[] }
+-  | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter }
++  | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; scope?: "all" | "schedules" | "triggers"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter }
+   | { type: "showTeamMap" } | { type: "showWebPanel"; id: string }
+   | { type: "showFiles"; suggest?: string[] }
+   | { type: "showChat" }
+@@ -980,7 +980,7 @@ export function reducer(state: AppState, action: Action): AppState {
+       return {
+         ...state,
+         activeView: "routines",
+-        routinesFocus: { section: action.section, view: action.view, botId: action.botId, routineId: action.routineId, runStatus: action.runStatus, nonce: state.routinesFocus.nonce + 1 },
++        routinesFocus: { section: action.section, view: action.view, scope: action.scope, botId: action.botId, routineId: action.routineId, runStatus: action.runStatus, nonce: state.routinesFocus.nonce + 1 },
+         settingsOpen: false,
+         computerOpen: false,
+         inspectorOpen: false,

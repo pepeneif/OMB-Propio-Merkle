@@ -135,3 +135,10 @@ export function simpleRowLayout(items: readonly TranscriptItem[], { botId, showT
   });
   return { joins: bubbleJoins(slots), tucks: cardTucks(slots) };
 }
+
+/** A10 (v140): con "Color my messages" encendido, la burbuja del usuario y la final del bot
+ *  llevan un borde de 1 px del color del bot. Poner en false para revertir el parche entero. */
+export const USER_TINT_BORDER = true;
+
+/** A10: 1 px del color del bot (el mismo grosor de linea que dibujan las tablas). */
+export const TINT_BORDER_CLASS = "border";

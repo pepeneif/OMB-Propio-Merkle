@@ -11,7 +11,7 @@ import { setAttentionPinned, useAttentionPinned } from "./attention-pinned";
 import { closeInbox } from "@/state/inbox";
 import { inboxFixes } from "./inbox-view";
 
-export function InboxActive({ view }: { view: InboxView | null }) {
+export function InboxActive({ view, activeThreads = false }: { view: InboxView | null; activeThreads?: boolean }) {
   const { state, dispatch } = useStore();
   const team = useTeamPeople();
   const pinned = useAttentionPinned();
@@ -29,7 +29,7 @@ export function InboxActive({ view }: { view: InboxView | null }) {
           {fixes.map((item) => <NeedsYouLine key={`${item.kind}:${item.id}`} item={item} onOpened={closeInbox} />)}
         </section>
       )}
-      {(entries.length > 0 || pinned) && (
+      {activeThreads && (entries.length > 0 || pinned) && (
         <section data-inbox-active aria-label={t("attention.title")} className="border-t border-hairline/40 px-1.5 py-1.5">
           <div className="flex items-center gap-1 px-2 py-0.5">
             <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink-secondary">{t("attention.title")}</span>

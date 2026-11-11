@@ -34,7 +34,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const appTriggers = useAppTriggers();
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const focus = state.routinesFocus;
-  const view = focus?.view === "calendar" ? "calendar" : "list";
+  const scope = focus?.scope ?? "all";
+  const view = scope === "triggers" ? "list" : focus?.view === "calendar" ? "calendar" : "list";
   const [openId, setOpenId] = useState<string | null>(focus?.section !== "logs" ? focus?.routineId ?? null : null);
   const [botFilter, setBotFilter] = useState(focus?.botId ?? "all");
   const [department, setDepartment] = useState("all");
@@ -52,8 +53,12 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   }, [focus]);
   useEffect(() => { backButtonRef.current?.focus({ preventScroll: true }); }, []);
 
-  const all = useMemo(() => automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, appTriggers: appTriggers.triggers, runs: state.routineRuns, bots: state.bots }),
-    [state.routines, state.webhooks, appTriggers.triggers, state.routineRuns, state.bots, routinesOnly]);
+  const all = useMemo(() => {
+    const every = automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, appTriggers: appTriggers.triggers, runs: state.routineRuns, bots: state.bots });
+    if (scope === "schedules") return every.filter((automation) => automation.kind === "schedule");
+    if (scope === "triggers") return every.filter((automation) => automation.kind === "webhook" || automation.kind === "app");
+    return every;
+  }, [state.routines, state.webhooks, appTriggers.triggers, state.routineRuns, state.bots, routinesOnly, scope]);
   const departments = filterableDepartments(state.bots, [...new Set([...(state.sections ?? []), ...state.bots.flatMap((bot) => bot.section ? [bot.section] : [])])]);
   const showDepartments = departments.names.length + (departments.hasGeneral ? 1 : 0) > 1;
   const activeDepartment = department === "all" || (department === GENERAL_DEPARTMENT ? departments.hasGeneral : departments.names.includes(department)) ? department : "all";
@@ -81,7 +86,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
       <header className={cn("shrink-0 border-b border-hairline/35 bg-app py-3 pr-4", macInset && !windowFramed(capabilities) && view === "calendar" ? "pl-[86px]" : view === "list" ? "pl-12 md:pl-4" : "pl-4")} style={windowDragStyle}>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" ref={backButtonRef} onClick={onBack} aria-label={t("automations.back")} title={t("automations.back")} className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised hover:text-ink" style={windowNoDragStyle}><ArrowLeft size={18} /></button>
-          <h1 data-tour="automations-page" className="mr-1 text-[18px] font-semibold tracking-tight text-ink">{t("automations.title")}</h1>
+          <h1 data-tour="automations-page" className="mr-1 text-[18px] font-semibold tracking-tight text-ink">{scope === "triggers" ? t("sidebar.nav.triggers") : t("automations.title")}</h1>
           <div className="ml-auto flex items-center gap-3" style={windowNoDragStyle}>
             {showDepartments && (
               <Select size="sm" aria-label={t("automations.allDepartments")} value={activeDepartment} onChange={(event) => { setDepartment(event.target.value); setBotFilter("all"); }} className="max-w-[180px]">
@@ -96,14 +101,14 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
                 {departmentBots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
               </Select>
             )}
-            <div role="group" aria-label={t("automations.view")} className="flex items-center rounded-lg border border-hairline/50 bg-panel p-0.5">
+            {scope !== "triggers" && <div role="group" aria-label={t("automations.view")} className="flex items-center rounded-lg border border-hairline/50 bg-panel p-0.5">
               {(["list", "calendar"] as const).map((option) => (
                 <button key={option} type="button" aria-pressed={view === option} onClick={() => dispatch({ type: "showRoutines", view: option, botId: botFilter === "all" ? undefined : botFilter })}
                   className={cn("rounded-md px-3 py-1 text-[13px] font-medium", view === option ? "bg-raised text-ink shadow-sm" : "text-ink-secondary hover:text-ink")}>
                   {option === "list" ? t("automations.list") : t("automations.calendar")}
                 </button>
               ))}
-            </div>
+            </div>}
             <button type="button" onClick={() => setNewText("")} className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-accent-ink hover:brightness-110"><Plus size={15} aria-hidden="true" />{t("automations.new")}</button>
           </div>
         </div>

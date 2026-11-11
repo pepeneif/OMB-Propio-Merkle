@@ -2993,6 +2993,7 @@
   "composer.attach": "Attach a file",
   "composer.attachFiles": "Attach files",
   "composer.teachTask": "Teach a task",
+  "composer.setupTask": "Set up this bot",
   "composer.goal.aria": "Finish together",
   "composer.goal.title": "Finish together: the team keeps working until the goal is complete",
   "composer.goal.soloAria": "Work until done",
@@ -10208,5 +10209,6 @@
   "phoneUpdate.body": "{phone} has an older version of the MausBot app, which can no longer connect to this computer away from your Wi-Fi. Update the app on that phone, then open it once on the same Wi-Fi as this computer. If that doesn't reconnect it, pair it again.",
   "phoneUpdate.bodyMany": "{count} of your phones have an older version of the MausBot app, which can no longer connect to this computer away from your Wi-Fi. Update the app on each phone, then open it once on the same Wi-Fi as this computer. If that doesn't reconnect it, pair it again.",
   "phoneUpdate.open": "Open Phone & devices",
-  "remote.devices.pairAgain": "Pair again"
+  "remote.devices.pairAgain": "Pair again",
+  "composer.emoji": "Emoji"
 }

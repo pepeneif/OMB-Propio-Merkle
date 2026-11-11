@@ -1,0 +1,636 @@
+diff --git a/package.json b/package.json
+index 0f3179d26..c1557263b 100644
+--- a/package.json
++++ b/package.json
+@@ -114,6 +114,7 @@
+     "clsx": "^2.1.1",
+     "codemirror": "6.0.2",
+     "croner": "10.0.1",
++    "emoji-picker-react": "4.18.0",
+     "jmespath": "0.16.0",
+     "jose": "6.2.10",
+     "katex": "^0.16.47",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index e79dc87fd..6542a9798 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -81,6 +81,9 @@ importers:
+       croner:
+         specifier: 10.0.1
+         version: 10.0.1
++      emoji-picker-react:
++        specifier: 4.18.0
++        version: 4.18.0(react@19.2.8)
+       jmespath:
+         specifier: 0.16.0
+         version: 0.16.0
+@@ -3278,6 +3281,12 @@ packages:
+   elkjs@0.9.3:
+     resolution: {integrity: sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ==}
+ 
++  emoji-picker-react@4.18.0:
++    resolution: {integrity: sha512-vLTrLfApXAIciguGE57pXPWs9lPLBspbEpPMiUq03TIli2dHZBiB+aZ0R9/Wat0xmTfcd4AuEzQgSYxEZ8C88Q==}
++    engines: {node: '>=10'}
++    peerDependencies:
++      react: '>=16'
++
+   emoji-regex@10.6.0:
+     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
+ 
+@@ -3441,6 +3450,9 @@ packages:
+   filelist@1.0.6:
+     resolution: {integrity: sha512-5giy2PkLYY1cP39p17Ech+2xlpTRL9HLspOfEgm0L6CwBXBTgsK5ou0JtzYuepxkaQ/tvhCFIJ5uXo0OrM2DxA==}
+ 
++  flairup@1.0.0:
++    resolution: {integrity: sha512-IKlE+pNvL2R+kVL1kEhUYqRxVqeFnjiIvHWDMLFXNaqyUdFXQM2wte44EfMYJNHkW16X991t2Zg8apKkhv7OBA==}
++
+   form-data@4.0.6:
+     resolution: {integrity: sha512-vKatAh4SlVfgbv+YtmhiRjhEMJsYpsG1Y2rMQtR+SVSbytsSD1YGzDIcrAJmdFec88u/+VoGmxnl+80gL1tRCQ==}
+     engines: {node: '>= 6'}
+@@ -8067,6 +8079,11 @@ snapshots:
+ 
+   elkjs@0.9.3: {}
+ 
++  emoji-picker-react@4.18.0(react@19.2.8):
++    dependencies:
++      flairup: 1.0.0
++      react: 19.2.8
++
+   emoji-regex@10.6.0: {}
+ 
+   emoji-regex@8.0.0: {}
+@@ -8268,6 +8285,8 @@ snapshots:
+     dependencies:
+       minimatch: 5.1.9
+ 
++  flairup@1.0.0: {}
++
+   form-data@4.0.6:
+     dependencies:
+       asynckit: 0.4.0
+diff --git a/src/components/ChatView.controls.test.ts b/src/components/ChatView.controls.test.ts
+index 23b597096..03a03d4a9 100644
+--- a/src/components/ChatView.controls.test.ts
++++ b/src/components/ChatView.controls.test.ts
+@@ -356,8 +356,8 @@ describe("thread control placement", () => {
+     expect(editor).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "@max-[30rem]/composer:order-first", "@max-[30rem]/composer:basis-full"]));
+     expect(editor).not.toContain("basis-full");
+     const textarea = /<textarea[^>]*class="([^"]*)"/.exec(markup)!.at(1)!.split(" ");
+-    expect(textarea).toContain("min-h-6");
+-    expect(textarea).not.toContain("min-h-14");
++    expect(textarea).toContain("min-h-14");
++    expect(textarea).not.toContain("min-h-6");
+   });
+ 
+   it("keeps the composer inert until the deleted thread's replacement transcript arrives", () => {
+diff --git a/src/components/ChatView.tsx b/src/components/ChatView.tsx
+index fe2fca918..0a9ef9b86 100644
+--- a/src/components/ChatView.tsx
++++ b/src/components/ChatView.tsx
+@@ -1074,7 +1074,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+         </div>
+         <div
+           data-chathead-controls
+-          className={cn("flex shrink-0 items-center gap-2", !phone && "@max-[30rem]/chathead:ml-auto @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:justify-end @min-[30rem]/chathead:col-start-3 @min-[30rem]/chathead:justify-self-end")}
++          className={cn("relative flex shrink-0 items-center gap-2", !phone && "@max-[30rem]/chathead:ml-auto @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:justify-end @min-[30rem]/chathead:col-start-3 @min-[30rem]/chathead:justify-self-end")}
+         >
+           {!simpleHead && (bot.busy || bot.waitingForTeammates) && (
+             <button
+@@ -1093,7 +1093,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
+           <EngineLimitNotice engine={bot.modelSelection?.instanceId} />
+           {/* A18 (v140): el modelo y la intensidad viven ahora dentro del menu ... */}
+           {/* A20 (v140): el selector de modelos de la 130, invisible, para que el menu ... lo abra directo. */}
+-          {advanced && !remoteClient && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} hideTrigger />}
++          {/* A21 (v140): el selector oculto se ancla al borde inferior-derecho del contenedor de controles, que
++              es donde vive el menu de 3 puntos, para que su ventana abra pegada y alineada con ese menu en vez
++              de muy a la izquierda. Se saca del flujo (absolute) para no meter un hueco de gap. */}
++          {advanced && !remoteClient && (
++            <div className="absolute right-0 top-full" aria-hidden="true">
++              <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} hideTrigger />
++            </div>
++          )}
+           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
+           {!phone && !simpleHead && (
+             <>
+diff --git a/src/components/Composer.emoji.test.ts b/src/components/Composer.emoji.test.ts
+new file mode 100644
+index 000000000..f8f63fa1e
+--- /dev/null
++++ b/src/components/Composer.emoji.test.ts
+@@ -0,0 +1,113 @@
++// @vitest-environment happy-dom
++// The composer's emoji button (parche 0035/0036, portado de NanoBot): an emoji chosen from
++// the picker lands at the caret, and the box starts at two lines in the roomy composer.
++import { createElement } from "react";
++import { flushSync } from "react-dom";
++import { createRoot, type Root } from "react-dom/client";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import type { Bot } from "@/state/store";
++import { restoreComposerDraft } from "@/lib/drafts";
++
++const fixture = vi.hoisted(() => ({ advanced: true, dispatch: vi.fn() }));
++vi.mock("@/state/store", async (importOriginal) => {
++  const original = await importOriginal<typeof import("@/state/store")>();
++  return { ...original, useStore: () => ({
++    state: { ...original.initialState, bots: [bot], instances: [{
++      instanceId: "fake", driverKind: "claude", displayName: "Fake", capabilities: {},
++    }] },
++    dispatch: fixture.dispatch,
++  }) };
++});
++vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
++vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => true }));
++vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => fixture.advanced, setAdvancedMode: vi.fn() }));
++vi.mock("./CallView", () => ({ CallButton: () => null }));
++vi.mock("./GroupCallView", () => ({ GroupCallButton: () => null }));
++vi.mock("./DesktopCapabilities", async () => {
++  const { initialDesktopCapabilities } = await import("@/lib/desktop");
++  return { useDesktopCapabilities: () => ({ capabilities: initialDesktopCapabilities(), ready: true }) };
++});
++// The real picker is a large tree; stand in for it so the test drives just the wiring.
++vi.mock("emoji-picker-react", () => ({
++  Theme: { AUTO: "auto", LIGHT: "light", DARK: "dark" },
++  SuggestionMode: { RECENT: "recent", FREQUENT: "frequent" },
++  default: ({ onEmojiClick }: { onEmojiClick: (data: { emoji: string }) => void }) =>
++    createElement("button", { type: "button", "data-testid": "picker", onClick: () => onEmojiClick({ emoji: "🚀" }) }, "picker"),
++}));
++
++import { Composer } from "./Composer";
++
++const bot: Bot = {
++  id: "emoji-bot", threadId: "emoji-thread", name: "Fixture", title: "", description: "",
++  color: "blue", notifications: false, unread: false, busy: false, messages: [],
++  modelSelection: { instanceId: "fake", model: "fake" },
++};
++const draftId = `bot:${bot.id}:${bot.threadId}`;
++
++describe("the composer's emoji button", () => {
++  let root: Root;
++  let container: HTMLDivElement;
++  const input = () => container.querySelector<HTMLTextAreaElement>("textarea")!;
++  const emojiButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="Emoji"]');
++  const picker = () => container.querySelector<HTMLButtonElement>('[data-testid="picker"]');
++
++  beforeEach(() => {
++    fixture.advanced = true;
++    vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
++    vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
++    container = document.createElement("div");
++    document.body.append(container);
++    root = createRoot(container);
++  });
++  afterEach(() => {
++    flushSync(() => root.unmount());
++    restoreComposerDraft(draftId, { text: "", attachments: [] });
++    container.remove();
++    vi.clearAllMocks();
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
++  it("inserts the chosen emoji at the caret, not at the end", () => {
++    restoreComposerDraft(draftId, { text: "AB", attachments: [] });
++    flushSync(() => root.render(createElement(Composer, { bot })));
++    expect(emojiButton()).not.toBeNull();
++    input().setSelectionRange(1, 1);
++    flushSync(() => emojiButton()!.click());
++    expect(picker()).not.toBeNull();
++    flushSync(() => picker()!.click());
++    // Not "AB🚀": the emoji goes in where the caret was. (happy-dom does not run the
++    // animation frame that re-places the caret, so only the text is asserted here.)
++    expect(input().value).toBe("A🚀B");
++  });
++
++  it("starts the roomy composer at two lines", () => {
++    restoreComposerDraft(draftId, { text: "", attachments: [] });
++    flushSync(() => root.render(createElement(Composer, { bot })));
++    const field = input();
++    expect(field.getAttribute("rows")).toBe("2");
++    expect(field.className.split(" ")).toContain("min-h-14");
++  });
++
++  it("lays the left cluster out in two rows, approval and place above attach and the goal chip", () => {
++    restoreComposerDraft(draftId, { text: "", attachments: [] });
++    flushSync(() => root.render(createElement(Composer, { bot })));
++    const attach = container.querySelector<HTMLButtonElement>('button[aria-label="Adjuntar un archivo"], button[aria-label="Attach a file"]')!;
++    const emoji = emojiButton()!;
++    // The cluster is a 2-row grid: attach sits on the bottom row's last column and the emoji
++    // picker directly above it, while the goal chip spans the bottom row's first column.
++    expect(attach.className).toContain("row-start-2");
++    expect(attach.className).toContain("col-start-3");
++    const emojiCell = emoji.parentElement!.parentElement!;
++    expect(emojiCell.className).toContain("row-start-1");
++    expect(emojiCell.className).toContain("col-start-3");
++    expect(emojiCell.parentElement!.className).toContain("grid-rows-2");
++  });
++
++  it("keeps the emoji button out of Simple mode's round + composer", () => {
++    fixture.advanced = false;
++    restoreComposerDraft(draftId, { text: "", attachments: [] });
++    flushSync(() => root.render(createElement(Composer, { bot })));
++    expect(emojiButton()).toBeNull();
++  });
++});
+diff --git a/src/components/Composer.simple.test.ts b/src/components/Composer.simple.test.ts
+index 93c25ed6c..f11029a88 100644
+--- a/src/components/Composer.simple.test.ts
++++ b/src/components/Composer.simple.test.ts
+@@ -345,6 +345,9 @@ describe("the Advanced composer", () => {
+     expect(fixture.groupCall).toBeNull();
+   });
+ 
++  // Portado de la 130 (0035/0036): la caja arranca en dos renglones y crece hacia abajo sin
++  // sacar el texto de la fila ni subirlo encima de los iconos; el editor queda siempre junto
++  // a los botones, sea un renglon o cinco.
+   describe("with a message longer than one line", () => {
+     const type = (value: string) => {
+       const field = container.querySelector("textarea")!;
+@@ -354,64 +357,21 @@ describe("the Advanced composer", () => {
+       });
+     };
+     const classes = (selector: string) => container.querySelector(selector)!.className.split(" ");
+-    const stacked = () => classes(".mention-editor").includes("basis-full");
+-    /** A field 20 characters wide: longer text wraps onto a second 24px line. */
+-    const wrapPast20 = () => vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get")
+-      .mockImplementation(function (this: HTMLTextAreaElement) { return this.value.length > 20 ? 48 : 24; });
+ 
+-    it("gives the text the full width above the buttons, and puts it back beside them on one line", () => {
++    it("keeps the editor beside the buttons, never taking the full width above them", () => {
+       fixture.advanced = true;
+       render({ bot });
+-      expect(stacked()).toBe(false);
+       type("Okay I have done my outreach.\nAnother line of text.");
+-      expect(classes(".mention-editor")).toEqual(expect.arrayContaining(["order-first", "basis-full"]));
+-      expect(classes("[data-composer-row]")).toContain("flex-wrap");
+-      expect(classes("[data-composer-actions]")).toContain("ml-auto");
+-      type("Okay I have done my outreach.");
+-      expect(stacked()).toBe(false);
++      expect(classes(".mention-editor")).not.toContain("basis-full");
++      expect(classes(".mention-editor")).not.toContain("order-first");
+       expect(classes("[data-composer-row]")).not.toContain("flex-wrap");
+-    });
+-
+-    it("stacks once the text wraps beside the buttons, and stays stacked until it is shorter than where it wrapped", () => {
+-      wrapPast20();
+-      fixture.advanced = true;
+-      render({ bot });
+-      type("a".repeat(25));
+-      expect(stacked()).toBe(true);
+-      // Wider on its own line, it would fit on one row there; it still must not flip back and forth.
+-      type("a".repeat(30));
+-      expect(stacked()).toBe(true);
+-      type("a".repeat(24));
+-      expect(stacked()).toBe(true);
+-      type("a".repeat(10));
+-      expect(stacked()).toBe(false);
+-    });
+-
+-    it("measures each new message afresh, so a wrap from a narrower composer does not stick", () => {
+-      const wrap = wrapPast20();
+-      fixture.advanced = true;
+-      render({ bot });
+-      type("a".repeat(25));
+-      expect(stacked()).toBe(true);
+-      type("");
+-      // Wider now: 30 characters fit on the one row.
+-      wrap.mockImplementation(function (this: HTMLTextAreaElement) { return this.value.length > 40 ? 48 : 24; });
+-      type("a".repeat(30));
+-      expect(stacked()).toBe(false);
+-    });
+-
+-    it("never stacks an empty field, even when its placeholder wraps", () => {
+-      vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockReturnValue(48);
+-      fixture.advanced = true;
+-      render({ bot });
+-      expect(stacked()).toBe(false);
++      expect(classes("[data-composer-actions]")).not.toContain("ml-auto");
+     });
+ 
+     it("leaves Simple's pill alone", () => {
+-      wrapPast20();
+       render({ bot });
+       type("a".repeat(25) + "\nb");
+-      expect(stacked()).toBe(false);
++      expect(classes(".mention-editor")).not.toContain("basis-full");
+       expect(classes("[data-composer-row]")).not.toContain("flex-wrap");
+     });
+   });
+diff --git a/src/components/Composer.tsx b/src/components/Composer.tsx
+index 4cd18a8d8..3b993eae4 100644
+--- a/src/components/Composer.tsx
++++ b/src/components/Composer.tsx
+@@ -33,6 +33,7 @@ import {
+ import { DEVS_CHOICE, MentionMenu, teammateChoices, type MentionChoice } from "./MentionMenu"; import { useTeammates } from "@/state/team-people"; import { hiddenFromSidebar, useViewerEmail } from "@/lib/default-bot";
+ import { SlashCommandMenu } from "./SlashCommandMenu";
+ import { MentionTextarea } from "./MentionTextarea";
++import { ComposerEmoji } from "./ComposerEmoji";
+ import { ComposerAttachments, pathForFile } from "./ComposerAttachments";
+ import { PointedChips } from "./app/PointedChips"; import { SetupRequestChip, setupRequestPlaceholder } from "./SetupOffer";
+ import { takePointedChips } from "@/lib/pointed-chips";
+@@ -72,7 +73,7 @@ import { GroupCallButton } from "./GroupCallView";
+ import { ApprovalChip, ComposerPlusMenu, GoalToggle, TeachTaskButton } from "./ComposerPlusMenu";
+ import { PhonePlus } from "./PhonePlus";
+ import { useThreadApproval } from "./thread-approval";
+-import { useStackedField, useTallPill } from "./composer-wrap";
++import { useTallPill } from "./composer-wrap";
+ import { useDesktopCapabilities } from "./DesktopCapabilities";
+ import { ComposerReplyStrip } from "./ReplyQuote";
+ import { escapeCancelsReply } from "@/lib/replies";
+@@ -233,7 +234,6 @@ export function Composer({
+   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
+   const [dismissedSlashAt, setDismissedSlashAt] = useState<number | null>(null);
+   const inputRef = useRef<HTMLTextAreaElement>(null);
+-  const stacked = useStackedField(inputRef, advanced && !singleRow, text);
+   const draftIdRef = useRef(draftId);
+   draftIdRef.current = draftId;
+   const caretRef = useRef(0);
+@@ -692,6 +692,27 @@ export function Composer({
+     }
+     setChannelMode((current) => current === "goal" ? "chat" : "goal");
+   };
++  // NanoBot's emoji box: a chosen emoji lands at the caret and the field keeps it,
++  // instead of appending at the end. The mirror is untouched, so the caret stays put.
++  const insertEmoji = useCallback(
++    (emoji: string) => {
++      const input = inputRef.current;
++      const start = input?.selectionStart ?? caret;
++      const end = input?.selectionEnd ?? start;
++      const next = `${text.slice(0, start)}${emoji}${text.slice(end)}`;
++      editText(next);
++      const at = start + emoji.length;
++      setCaret(at);
++      requestAnimationFrame(() => {
++        const field = inputRef.current;
++        if (!field) return;
++        field.focus();
++        field.setSelectionRange(at, at);
++      });
++    },
++    [text, caret, editText],
++  );
++
+   const goal = !group?.dm ? { on: effectiveChannelMode === "goal", onToggle: toggleGoal, solo: !group } : undefined;
+ 
+   return (
+@@ -803,7 +824,7 @@ export function Composer({
+         )}
+         <div className={singleRow ? cn("min-w-0 flex-1 rounded-[26px] px-3 py-1.5", ELEVATED_FLOAT) : "contents"}>
+         {replyTo && <ComposerReplyStrip message={replyTo} fallbackName={bot?.name} onClear={onClearReply} />}
+-        <div data-composer-row className={cn("flex items-end", simpleDock ? "gap-1.5" : "gap-1", !singleRow && !simpleDock && "@max-[30rem]/composer:flex-wrap", stacked && "flex-wrap")}>
++        <div data-composer-row className={cn("flex items-end", simpleDock ? "gap-1.5" : "gap-1", !singleRow && !simpleDock && "@max-[30rem]/composer:flex-wrap")}>
+           <input
+             ref={fileInput}
+             type="file"
+@@ -816,40 +837,65 @@ export function Composer({
+             }}
+           />
+           {!locked && !singleRow && (
+-            <div className={cn("flex items-center gap-1", simpleDock ? "shrink-0" : "flex-wrap")}>
+-              {simpleDock && <ComposerPlusMenu onAttach={() => fileInput.current?.click()} goal={goal} teach={canLearn ? teachTask : undefined} />}
+-              {advanced && <button
+-                type="button"
+-                onClick={() => fileInput.current?.click()}
+-                aria-label={t("composer.attach")}
+-                title={t("composer.attach")}
+-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-control hover:text-ink"
+-              >
+-                <Paperclip size={16} strokeWidth={1.75} absoluteStrokeWidth />
+-              </button>}
+-              {advanced && canLearn && <TeachTaskButton onClick={teachTask} />}
+-              {/* Simple mode shows a mode's chip only while it is on, so a choice made in the + menu or the bot panel stays in view. */}
+-              {goal && (advanced || goal.on) && <GoalToggle {...goal} compact={simpleDock} />}
+-              {advanced && approvalChoice && <ApprovalModeSelector {...approvalChoice} />}
+-              {simpleDock && approvalChoice && profile && bot && approvalModeFor(bot) !== approvalModeFor(profile) && <ApprovalChip choice={approvalChoice} />}
+-              {modeBot && !remoteClient && advanced && (
+-                <PlaceChip
+-                  bot={modeBot}
+-                  task={composerTask}
+-                  live={Boolean(modeBot.busy)}
+-                  disabled={Boolean(modeBot.busy)}
+-                  onPin={(surface) => dispatch({ type: "updateTask", botId: modeBot.id, threadId: modeBot.threadId, patch: { surface } })}
+-                />
+-              )}
+-            </div>
++            simpleDock ? (
++              <div className="flex shrink-0 items-center gap-1">
++                <ComposerPlusMenu onAttach={() => fileInput.current?.click()} goal={goal} teach={canLearn ? teachTask : undefined} />
++                {canLearn && <TeachTaskButton onClick={teachTask} />}
++                {/* Simple mode shows a mode's chip only while it is on, so a choice made in the + menu or the bot panel stays in view. */}
++                {goal && goal.on && <GoalToggle {...goal} compact />}
++                {approvalChoice && profile && bot && approvalModeFor(bot) !== approvalModeFor(profile) && <ApprovalChip choice={approvalChoice} />}
++              </div>
++            ) : (
++              /* Advanced mode's left cluster in two rows: the approval level and where the bot works on the top
++                 row, the room's goal chip with attach to its right on the bottom row, and the emoji picker above
++                 attach. On a narrow composer the row wraps as before, in the same order it always had. */
++              <div className="grid grid-cols-[auto_auto_auto] grid-rows-2 items-center justify-items-start gap-1 @max-[30rem]/composer:flex @max-[30rem]/composer:flex-wrap">
++                <button
++                  type="button"
++                  onClick={() => fileInput.current?.click()}
++                  aria-label={t("composer.attach")}
++                  title={t("composer.attach")}
++                  className="col-start-3 row-start-2 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-control hover:text-ink"
++                >
++                  <Paperclip size={16} strokeWidth={1.75} absoluteStrokeWidth />
++                </button>
++                {canLearn && <div className="col-start-2 row-start-2"><TeachTaskButton onClick={teachTask} /></div>}
++                {goal && (
++                  <div className="col-span-1 col-start-1 row-start-2">
++                    <GoalToggle {...goal} />
++                  </div>
++                )}
++                {advanced && approvalChoice && (
++                  <div className="col-start-1 row-start-1">
++                    <ApprovalModeSelector {...approvalChoice} />
++                  </div>
++                )}
++                {modeBot && !remoteClient && advanced && (
++                  <div className="col-start-2 row-start-1">
++                    <PlaceChip
++                      bot={modeBot}
++                      task={composerTask}
++                      live={Boolean(modeBot.busy)}
++                      disabled={Boolean(modeBot.busy)}
++                      onPin={(surface) => dispatch({ type: "updateTask", botId: modeBot.id, threadId: modeBot.threadId, patch: { surface } })}
++                    />
++                  </div>
++                )}
++                {advanced && (
++                  <div className="col-start-3 row-start-1">
++                    <ComposerEmoji onPick={insertEmoji} disabled={Boolean(approval) || locked} />
++                  </div>
++                )}
++              </div>
++            )
+           )}
+           <MentionTextarea
+-          wrapperClassName={singleRow || simpleDock ? undefined : cn("@max-[30rem]/composer:order-first @max-[30rem]/composer:basis-full", stacked && "order-first basis-full")}
++          wrapperClassName={singleRow || simpleDock ? undefined : "@max-[30rem]/composer:order-first @max-[30rem]/composer:basis-full"}
+           inputRef={inputRef}
+           peers={[...(group ? members ?? [] : state.bots.filter((member) => member.id !== bot?.id)), ...teammates.peers]}
+           everyone={Boolean(group && !group.dm)}
+           dir="auto"
+-          rows={1}
++          rows={2}
+           value={text}
+           onChange={(e) => {
+             if (recording) stopDictation();
+@@ -940,10 +986,10 @@ export function Composer({
+             className={cn(
+               "block max-h-[9rem] w-full resize-none overflow-y-auto bg-transparent placeholder:text-ink-tertiary focus:outline-none",
+               !simpleDock && "px-1 text-[15px]",
+-              simpleDock ? "min-h-7 px-0.5 py-1 text-[14px] leading-5" : "min-h-6 py-1 leading-6",
++              simpleDock ? "min-h-7 px-0.5 py-1 text-[14px] leading-5" : "min-h-14 py-1 leading-6",
+             )}
+           />
+-          <div data-composer-actions className={cn("flex items-center", simpleDock ? "gap-2" : "gap-1", !singleRow && !simpleDock && "@max-[30rem]/composer:ml-auto", stacked && "ml-auto")}>
++          <div data-composer-actions className={cn("flex items-center", simpleDock ? "gap-2" : "gap-1", !singleRow && !simpleDock && "@max-[30rem]/composer:ml-auto")}>
+           {(simpleDock ? stoppable : busy) && !locked && (
+           <button
+             onClick={interruptTurn}
+diff --git a/src/components/ComposerEmoji.test.ts b/src/components/ComposerEmoji.test.ts
+new file mode 100644
+index 000000000..8a723c43f
+--- /dev/null
++++ b/src/components/ComposerEmoji.test.ts
+@@ -0,0 +1,51 @@
++// @vitest-environment happy-dom
++// The composer's emoji button, ported from NanoBot: the picker opens above the
++// button and a chosen emoji goes to the composer through onPick.
++import { createElement } from "react";
++import { flushSync } from "react-dom";
++import { createRoot, type Root } from "react-dom/client";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++vi.mock("emoji-picker-react", () => ({
++  Theme: { AUTO: "auto", LIGHT: "light", DARK: "dark" },
++  SuggestionMode: { RECENT: "recent", FREQUENT: "frequent" },
++  default: ({ onEmojiClick }: { onEmojiClick: (data: { emoji: string }) => void }) =>
++    createElement("button", { type: "button", "data-testid": "picker", onClick: () => onEmojiClick({ emoji: "🚀" }) }, "picker"),
++}));
++
++import { ComposerEmoji } from "./ComposerEmoji";
++
++describe("the composer emoji button", () => {
++  let root: Root;
++  let container: HTMLDivElement;
++  const button = () => container.querySelector<HTMLButtonElement>(`button[aria-label="Emoji"]`);
++
++  beforeEach(() => {
++    container = document.createElement("div");
++    document.body.append(container);
++    root = createRoot(container);
++  });
++  afterEach(() => {
++    flushSync(() => root.unmount());
++    document.body.innerHTML = "";
++    vi.clearAllMocks();
++  });
++
++  it("keeps the picker closed until the button is pressed, then hands the choice to the composer", () => {
++    const onPick = vi.fn();
++    flushSync(() => root.render(createElement(ComposerEmoji, { onPick })));
++    expect(button()).not.toBeNull();
++    expect(container.querySelector('[data-testid="picker"]')).toBeNull();
++    flushSync(() => button()!.click());
++    expect(container.querySelector('[data-testid="picker"]')).not.toBeNull();
++    flushSync(() => container.querySelector<HTMLButtonElement>('[data-testid="picker"]')!.click());
++    expect(onPick).toHaveBeenCalledWith("🚀");
++  });
++
++  it("opens nothing while the composer is disabled", () => {
++    flushSync(() => root.render(createElement(ComposerEmoji, { onPick: vi.fn(), disabled: true })));
++    expect(button()!.disabled).toBe(true);
++    flushSync(() => button()!.click());
++    expect(container.querySelector('[data-testid="picker"]')).toBeNull();
++  });
++});
+diff --git a/src/components/ComposerEmoji.tsx b/src/components/ComposerEmoji.tsx
+new file mode 100644
+index 000000000..fc9e996d9
+--- /dev/null
++++ b/src/components/ComposerEmoji.tsx
+@@ -0,0 +1,71 @@
++import { useEffect, useRef, useState } from "react";
++import EmojiPicker, { Theme as EmojiTheme, SuggestionMode, type EmojiClickData } from "emoji-picker-react";
++import { Smile } from "lucide-react";
++import { cn } from "@/lib/cn";
++import { t } from "@/lib/i18n";
++
++/** The composer's emoji button, ported from NanoBot (bot.merkle.space): the same
++ *  emoji-picker-react picker, anchored above the button. A click inserts the emoji
++ *  at the caret through `onPick`; the picker keeps its own recent list. Like
++ *  NanoBot, it is a desktop control and is not shown on a phone. */
++export function ComposerEmoji({ onPick, disabled, simple = false }: {
++  onPick: (emoji: string) => void;
++  disabled?: boolean;
++  simple?: boolean;
++}) {
++  const [open, setOpen] = useState(false);
++  const holderRef = useRef<HTMLDivElement>(null);
++  useEffect(() => {
++    if (!open) return;
++    const onDown = (event: MouseEvent) => {
++      if (holderRef.current?.contains(event.target as Node)) return;
++      setOpen(false);
++    };
++    const onKey = (event: KeyboardEvent) => {
++      if (event.key === "Escape") setOpen(false);
++    };
++    document.addEventListener("mousedown", onDown);
++    document.addEventListener("keydown", onKey);
++    return () => {
++      document.removeEventListener("mousedown", onDown);
++      document.removeEventListener("keydown", onKey);
++    };
++  }, [open]);
++  return (
++    <div ref={holderRef} className="relative">
++      <button
++        type="button"
++        onClick={() => setOpen((value) => !value)}
++        disabled={disabled}
++        aria-label={t("composer.emoji")}
++        title={t("composer.emoji")}
++        aria-expanded={open}
++        className={cn(
++          "flex shrink-0 items-center justify-center",
++          simple
++            ? "size-7 rounded-full bg-ink/[0.05] ring-[0.5px] ring-inset ring-ink/[0.07] text-ink-tertiary hover:bg-ink/[0.09] hover:text-ink"
++            : "size-8 rounded-full text-ink-secondary hover:bg-control hover:text-ink",
++          open && !simple && "bg-control text-ink",
++        )}
++      >
++        <Smile size={simple ? 16 : 18} />
++      </button>
++      {open && (
++        <div className="absolute bottom-full left-0 z-40 mb-2">
++          <EmojiPicker
++            width={360}
++            height={430}
++            searchDisabled={false}
++            skinTonesDisabled
++            previewConfig={{ showPreview: false }}
++            suggestedEmojisMode={SuggestionMode.RECENT}
++            lazyLoadEmojis
++            theme={EmojiTheme.AUTO}
++            onEmojiClick={(emojiData: EmojiClickData) => onPick(emojiData.emoji)}
++            customEmojis={[]}
++          />
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/src/locales/en.json b/src/locales/en.json
+index 22f8bd6d4..f9356fdac 100644
+--- a/src/locales/en.json
++++ b/src/locales/en.json
+@@ -7415,5 +7415,6 @@
+   "server.browser.stoppedWaiting": "Stopped waiting for the browser.",
+   "composer.queued.capacityStarter": "Queued. Starter runs one thread at a time per bot, so this starts when the one running finishes. A bigger plan runs more.",
+   "composer.queued.seePlans": "See plans",
+-  "settings.threads.starter": "Starter runs one thread at a time per bot, and a bigger plan runs more. Work a bot starts for itself still runs, and each bot has its own one."
++  "settings.threads.starter": "Starter runs one thread at a time per bot, and a bigger plan runs more. Work a bot starts for itself still runs, and each bot has its own one.",
++  "composer.emoji": "Emoji"
+ }

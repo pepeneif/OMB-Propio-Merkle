@@ -101,7 +101,7 @@ export function InboxPanel() {
                     )
                   : rows.map((row) => <InboxRowItem key={row.id} row={row} now={now} onOpen={open} onAction={run} />)}
               </div>
-              {!query.trim() && <InboxActive view={view} />}
+              {!query.trim() && <InboxActive view={view} activeThreads={false} />}
             </div>
           </>
         )}

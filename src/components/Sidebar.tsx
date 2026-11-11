@@ -1,7 +1,7 @@
 import { OrganizationIdentity } from "./OrganizationIdentity";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import { createPortal } from "react-dom";
-import { Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, LayoutTemplate, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, Plus, Search, SquarePen, TextQuote, Trash2, Users, X } from "lucide-react";
+import { Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, GripVertical, LayoutTemplate, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, Plus, Search, SquarePen, TextQuote, Trash2, Users, X } from "lucide-react";
 import { api, useStore, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
 import { approvalModeFor } from "../../shared/approval-mode";
 import { liveActivityLabel, sidebarMessage } from "@/lib/live-activity";
@@ -71,10 +71,10 @@ import { PhoneHero } from "./SidebarPhoneHero";
 import { SidebarProfileMenu } from "./SidebarProfileMenu";
 import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { GlassBar, GlassScrollFrame, GlassScroller } from "./GlassScrollFrame";
-import { DesktopWorkspaceSwitcher, endCloudHowTo } from "./DesktopWorkspaceSwitcher"; import { PlaceTint } from "./PlaceTint"; import { ChromeRailToggle } from "./ChromeRailToggle";
+import { DesktopWorkspaceSwitcher, endCloudHowTo } from "./DesktopWorkspaceSwitcher"; import { ChromeRailToggle } from "./ChromeRailToggle";
 import { useCloudOwner } from "./CloudOwner";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
-import { NeedsYouButton, OwnerPickerHost, pickOwnerOf } from "./TeamOwner"; import { SidebarPeople } from "./SidebarPeople"; import { SidebarInboxRow } from "./SidebarInboxRow"; import { TeamSideSwitch, useTeamSideLists } from "./TeamSideSwitch"; import { SidebarActiveThreads } from "./SidebarActiveThreads"; import { setAttentionPinned, useAttentionPinned } from "./inbox/attention-pinned"; import { useInboxSupport } from "@/state/inbox";
+import { NeedsYouButton, OwnerPickerHost, pickOwnerOf } from "./TeamOwner"; import { SidebarPeople } from "./SidebarPeople"; import { SidebarInboxRow } from "./SidebarInboxRow"; import { TeamSideSwitch, useTeamSideLists } from "./TeamSideSwitch"; import { SidebarActiveThreads } from "./SidebarActiveThreads"; import { setAttentionPinned, useAttentionPinned } from "./inbox/attention-pinned";
 import { showWhoReportsToWhom, TeamMenuItems } from "./SidebarTeamMenu";
 import { MENU_ITEM, MENU_ITEM_SEPARATOR, MENU_SHEET } from "./menu-recipe";
 import { ELEVATED_CONTROL } from "./elevated";
@@ -711,7 +711,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
   const simpleRow = !advanced && !showThreads && density === "comfortable";
   const simpleList = !advanced && !iconOnly;
   const railTile = iconOnly && !advanced;
-  const avatarSize = iconOnly ? (railTile ? 36 : 44) : showThreads ? 32 : simpleRow ? 36 : 44;
+  const avatarSize = iconOnly ? (railTile ? 32 : 40) : showThreads ? 29 : simpleRow ? 32 : 40;
   const tooltip = simpleList ? botTooltip(bot, instances) : undefined;
   const visible = useVisibleMessages(bot);
   const last = lastNonReceipt(visible);
@@ -777,6 +777,14 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
       <div className={cn("min-w-0 flex-1", iconOnly && "hidden")}>
         <div className={cn("flex items-baseline justify-between gap-2", simpleRow && "pr-7")}>
           <span className={cn("flex min-w-0 grow items-center gap-1.5 truncate text-ink", simpleRow ? "text-[14px] font-medium leading-5" : "text-[15px] font-semibold leading-5")}>
+            {drag && !renaming && !deleting && !iconOnly && (
+              // The grip is the row's drag source (the v130 gesture) and sits between the avatar and the name,
+              // where it is easy to spot, instead of off at the row's right edge.
+              <span data-bot-drag-handle={bot.id} {...drag.handle(bot.id)} aria-hidden="true" title={t("sidebar.section.dragToReorder")}
+                className="flex size-4 shrink-0 cursor-grab items-center justify-center rounded text-ink-secondary opacity-0 hover:bg-raised hover:text-ink group-hover:opacity-100 group-focus-within:opacity-100 active:cursor-grabbing">
+                <GripVertical size={13} />
+              </span>
+            )}
             {!simpleList && bot.pinned && <Pin size={12} className="shrink-0 text-ink-secondary" />}
             <RenameTitle
               key={iconOnly ? "icons" : "expanded"}
@@ -855,7 +863,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
 
   return (
     <>
-    <div className={cn("group relative", railTile && "mx-auto w-[54px]", botRowDropClass(drop, dragging))} data-bot-drop={drop ?? undefined} {...(drag && !renaming ? drag.row(bot.id) : {})}
+    <div className={cn("group relative", railTile && "mx-auto w-[54px]", botRowDropClass(drop, dragging))} data-bot-drop={drop ?? undefined} {...(drag && !renaming ? drag.row(bot.id) : {})} {...(drag && !renaming && iconOnly ? drag.handle(bot.id) : {})}
       title={railTile ? botTooltip(bot, instances) : iconOnly ? [bot.name, bot.title?.trim()].filter(Boolean).join(" · ") : undefined}><BotDropLine place={drop} />
       {/* Keep this wrapper mounted: replacing it remounts RenameTitle and leaves the row stuck in rename mode. */}
       <div
@@ -969,7 +977,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   const plusMotion = useMenuMotion(plusOpen);
   const advanced = useAdvancedMode();
   const attentionPinned = useAttentionPinned();
-  const inboxSupport = useInboxSupport();
   const [newRoom, setNewRoom] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newFolderBotId, setNewFolderBotId] = useState<string | null>(null);
@@ -1153,7 +1160,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       aria-label={remoteClient ? t("sidebar.new") : t("sidebar.newOrShare")}
       className={phone ? PHONE_TOP_BUTTON : corner ? SIMPLE_CORNER_BUTTON : rail || simple ? SIMPLE_TOP_BUTTON : cn(
         "flex items-center justify-center text-ink-secondary transition-colors hover:bg-ink/[0.06] hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
-        density === "icons" ? "size-[46px] shrink-0 rounded-xl" : "size-8 rounded-full",
+        density === "icons" ? "size-8 shrink-0 rounded-md" : "size-8 rounded-full",
       )}
       title={remoteClient ? t("sidebar.new") : t("sidebar.newOrShare")}
     >
@@ -1247,9 +1254,9 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       }}
       style={{ "--sidebar-width": `${sizing.width}px` } as CSSProperties}
       className={cn(
-        "relative flex h-full shrink-0 flex-col border-r-[0.5px] border-edge bg-panel max-md:[--scroll-fade-surface:var(--color-app)]",
+        advanced ? "relative flex h-full shrink-0 flex-col border-r-[0.5px] border-edge bg-panel" : "relative flex h-full shrink-0 flex-col border-r-[0.5px] border-edge bg-panel max-md:[--scroll-fade-surface:var(--color-app)]",
         sizing.resizing && !sizing.snapping ? "transition-none" : "transition-[width] duration-200 motion-reduce:transition-none",
-        density === "icons" ? rail ? "w-[92px]" : "w-[80px]" : advanced ? "w-[320px] md:w-[var(--sidebar-width)]" : "w-[280px] md:w-[var(--sidebar-width)]",
+        density === "icons" ? "w-[72px]" : advanced ? "w-[320px] md:w-[var(--sidebar-width)]" : "w-[280px] md:w-[var(--sidebar-width)]",
         sidePanelOpen ? advanced ? "md:max-w-[320px]" : "md:max-w-[280px]" : "md:max-w-[calc(100vw-320px)]",
         // max-md: rather than an md: cancel: Tailwind v4 emits the native `translate`, and any value but `none` makes
         // this a containing block for its `fixed` descendants.
@@ -1258,14 +1265,14 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
         open ? "max-md:translate-x-0" : "max-md:-translate-x-full",
       )}
     >
-      <GlassScrollFrame className="flex-1" fade><PlaceTint />
+      <GlassScrollFrame className="flex-1" fade={!advanced}>
       <GlassBar edge="top">
       <div
         data-sidebar-top-row={corner ? "corner" : true}
         className={cn(
           "flex items-center",
           // The corner is no drag region and takes no clicks but its buttons': the tiles rise into the rest of it.
-          density === "icons" ? "flex-col gap-1 px-2 pt-3.5 pb-1" : corner ? "pointer-events-none relative h-[34px] items-start justify-end px-1.5 pt-1.5" : simpleDesk ? "relative h-[60px] items-start pl-4 pr-4 pt-3" : "relative pl-4 pr-2",
+          density === "icons" ? (rail ? "flex-col gap-[3.5px] px-2 pt-3.5 pb-1" : "flex-col gap-[2px] px-2 pt-[11px] pb-1") : corner ? "pointer-events-none relative h-[34px] items-start justify-end px-1.5 pt-1.5" : simpleDesk ? "relative h-[60px] items-start pl-4 pr-4 pt-3" : "relative pl-4 pr-2",
           density !== "icons" && !simpleDesk && !lights && "h-12 max-md:h-16",
         )}
         style={corner ? undefined : density !== "icons" && lights && !simpleDesk ? { ...windowDragStyle, height: MAC_TRAFFIC_LIGHT_CENTER_Y * 2 } : windowDragStyle}
@@ -1277,7 +1284,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           // beside the page or not.
           <div aria-hidden="true" data-traffic-light-space className={density === "icons" ? "h-5 w-full" : "w-[72px] shrink-0 md:w-[calc(72px_-_var(--rail-beside,0px))]"} />
         ) : null}{!phone && !framed && <ChromeRailToggle advanced={advanced} icons={density === "icons"} style={windowNoDragStyle} />}
-        {rail && <div data-sidebar-rail-top className="flex flex-col items-center gap-2 pt-1" style={windowNoDragStyle}>
+        {rail && <div data-sidebar-rail-top className="flex flex-col items-center gap-[7px] pt-1" style={windowNoDragStyle}>
           <button type="button" onClick={railSearch} aria-label={t("sidebar.searchAria")} title={t("sidebar.searchAria")} className={SIMPLE_TOP_BUTTON}>
             <Search size={18} strokeWidth={1.5} aria-hidden="true" />
           </button>
@@ -1293,7 +1300,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
         ))}
         {!rail && <div
           data-sidebar-top-buttons
-          className={cn("relative flex shrink-0 items-center", density === "icons" ? "flex-col gap-1" : corner ? "pointer-events-auto" : simpleDesk ? "gap-2" : simple ? "gap-1 pl-0.5" : "ml-0.5 gap-0.5")}
+          className={cn("relative flex shrink-0 items-center", density === "icons" ? "flex-col gap-[2px]" : corner ? "pointer-events-auto" : simpleDesk ? "gap-2" : simple ? "gap-1 pl-0.5" : "ml-0.5 gap-0.5")}
           style={windowNoDragStyle}
         >
           {simpleDesk && <SidebarSearchToggle ref={searchToggleRef} corner={corner} open={searchShown} onToggle={() => (searchShown ? closeSearch() : setSearchOpen(true))} />}
@@ -1302,11 +1309,11 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             onClick={openCommandPalette}
             aria-label={t("sidebar.searchAria")}
             title={t("sidebar.searchAria")}
-            className="flex size-[46px] shrink-0 items-center justify-center rounded-xl text-ink-secondary hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
             <Search size={20} strokeWidth={1.5} />
           </button>}
-          {advanced && inboxSupport === "no" && <SidebarActiveThreads entries={attention} icons={density === "icons"} phone={phone} dispatch={dispatch} />}
+          {advanced && <SidebarActiveThreads entries={attention} icons={density === "icons"} phone={phone} dispatch={dispatch} />}
           {plusControl}
         </div>}
       </div>
@@ -1372,7 +1379,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       {simpleDesk && !tiles && <SidebarNoBots />}
       </GlassBar>
 
-      {!collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={rail ? 92 : 80}
+      {!collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={72}
         onAvatars={(avatars) => setSidebarDensity(avatars ? "icons" : "comfortable")} style={windowNoDragStyle} />}
 
       <GlassScroller className={rail ? "[scrollbar-gutter:stable_both-edges]" : simpleDesk ? "px-3" : "px-2"}>
