@@ -1,9 +1,12 @@
-# OMB-140-Merkle
+# OMB-Propio-Merkle
 
-Fork de trabajo de **OpenMausBot v0.1.140** (Merkle.Space) — bitácora de modificaciones
-que aplicamos sobre el original. Base: tag upstream `v0.1.140` (commit `4b74b80`).
+Fork de trabajo propio de **Merkle.Space** sobre **OpenMausBot**. Vamos en la **v0.1.153**
+de OpenMausBot. Este archivo es la bitácora de las modificaciones que aplicamos sobre el
+original.
 
-Rama base: **`base-v0.1.140`** = v0.1.140 original sin parches.
+Ramas de trabajo:
+- **`merkle/v153-port`** = estado vigente (v0.1.153 + nuestros parches; alfa).
+- `merkle/port-v143`, `base-v0.1.140` = etapas anteriores del port.
 
 ## Lista v140/A/B/C/D
 
@@ -243,3 +246,18 @@ y anadido `Composer.tsx` (1041), como ya hizo el fork de la 140 (rama privada).
 ## Estado
 
 Sin desplegar. Alfa sigue con la 140. Se despliega a alfa solo si Jose lo aprueba.
+
+---
+
+# Port a la v0.1.153 (rama `merkle/v153-port`) — estado vigente
+
+Estado actual del fork: **OpenMausBot v0.1.153 + nuestros parches**, desplegado en alfa
+(`alfa.merkle.space`). Fusion a 3 vias de la 149 parcheada contra el tag `v0.1.153`
+(commit `6a80e9e2a`), con 12 conflictos resueltos y el parche 0008 re-aplicado; `tsc` limpio y
+298 pruebas en verde. Encima, la ronda de 4 correcciones cosmeticas del encabezado y el
+compositor (commit `487fb60e6`): inbox solo en la barra superior, cabecera en dos grupos
+(identidad a la izquierda, controles a la derecha), el selector de hilos muestra el titulo del
+hilo actual, e iconos con hover uniforme (`rounded-md`/`bg-raised`).
+
+Pendiente inmediato: port a la **v0.1.154** (merge resuelto en `merkle/v154-port`, commit
+`70a3e382f`), aun sin desplegar.
