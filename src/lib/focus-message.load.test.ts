@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Action, AppState, Bot, Group, Message } from "@/state/store";
+import { MESSAGE_PAGE_SIZE, type Action, type AppState, type Bot, type Group, type Message } from "@/state/store";
 
 const fixture = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock("@/state/store", async (original) => ({
@@ -34,8 +34,8 @@ describe("landing on a search hit older than the loaded page", () => {
   it("loads earlier pages of the open bot thread until the hit is there, then focuses it", async () => {
     await landOnSearchHit({ ...hit, botId: "scout", threadId: "t" }, state, dispatch, true);
     expect(fixture.api.mock.calls.map(([path]) => path)).toEqual([
-      "/api/threads/t/messages?limit=200&before=m400",
-      "/api/threads/t/messages?limit=200&before=m200",
+      `/api/threads/t/messages?limit=${MESSAGE_PAGE_SIZE}&before=m400`,
+      `/api/threads/t/messages?limit=${MESSAGE_PAGE_SIZE}&before=m200`,
     ]);
     expect(actions.map((action) => action.type)).toEqual(["select", "olderMessages", "focusMessage"]);
     expect(actions[1]).toEqual({ type: "olderMessages", threadId: "t", generation: 3, messages: range(0, 400), hasMore: false });

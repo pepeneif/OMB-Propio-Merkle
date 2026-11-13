@@ -17,7 +17,7 @@ vi.mock("@/state/store", async (importOriginal) => {
   return { ...original, useStore: () => ({ state: { ...original.initialState, ...fixture.state }, dispatch: vi.fn() }) };
 });
 
-import { BotModelBadge, botModel } from "./BotModelBadge";
+import { BotEngineMark, BotModelBadge, botModel } from "./BotModelBadge";
 import { BotListItem, botRowProps, type BotRowProps } from "./Sidebar";
 
 const claude = {
@@ -48,16 +48,21 @@ describe("botModel", () => {
 });
 
 describe("BotModelBadge", () => {
-  it("draws the engine mark, names only the model on hover and the engine too for screen readers", () => {
-    const markup = renderToStaticMarkup(createElement(BotModelBadge, { bot: bot("claude", "opus"), instances: [claude], avatarSize: 44 }));
-    expect(markup).toContain('data-testid="model-badge"');
-    expect(markup).toContain('aria-label="Model: Opus 4.1 (Claude)"');
-    expect(markup).toContain('title="Opus 4.1"');
-    expect(markup).toContain("<svg");
+  // A16 (v140): Jose asked that the provider's mark stop sitting on top of the bot's avatar.
+  it("draws nothing over the avatar while A16 keeps the provider mark off", () => {
+    expect(renderToStaticMarkup(createElement(BotModelBadge, { bot: bot("claude", "opus"), instances: [claude], avatarSize: 44 }))).toBe("");
   });
 
   it("draws nothing for an engine that is not installed", () => {
     expect(renderToStaticMarkup(createElement(BotModelBadge, { bot: bot("gone", "opus"), instances: [claude], avatarSize: 44 }))).toBe("");
+  });
+
+  it("keeps the faded engine mark Simple mode uses, naming the model and engine for screen readers", () => {
+    const markup = renderToStaticMarkup(createElement(BotEngineMark, { bot: bot("claude", "opus"), instances: [claude] }));
+    expect(markup).toContain('data-testid="model-badge"');
+    expect(markup).toContain('aria-label="Model: Opus 4.1 (Claude)"');
+    expect(markup).not.toContain("title=");
+    expect(markup).toContain("<svg");
   });
 });
 
@@ -76,22 +81,18 @@ describe("sidebar bot row", () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  // Every density puts the badge on the avatar's bottom-left: the status dots own the bottom-right, and a mark at the
-  // row's end sat under the hover actions (+, new folder, …) without lining up with them.
-  it.each<[SidebarDensity, string]>([["comfortable", "absolute -bottom-0.5 -left-0.5"], ["icons", "absolute -bottom-0.5 -left-0.5"]])(
-    "shows the model once in a %s row", (density, placement) => {
-      const found = badges(render(bot("claude", "opus"), density));
-      expect(found).toHaveLength(1);
-      expect(found[0]).toContain('aria-label="Model: Opus 4.1 (Claude)"');
-      expect(found[0]).toContain(placement);
-    });
+  // A16 (v140): the provider mark no longer sits on the avatar, so an advanced row draws no badge in any density.
+  it.each<SidebarDensity>(["comfortable", "icons"])("shows no badge on the avatar of a %s row (A16)", (density) => {
+    expect(badges(render(bot("claude", "opus"), density))).toHaveLength(0);
+  });
 
-  // Simple mode shows the mark too (the owner's ask, 2026-10-22): a person sees which provider each bot runs on at a glance.
-  it.each<SidebarDensity>(["comfortable", "icons"])("shows the model once in a Simple mode %s row", (density) => {
+  // Simple mode keeps its faded engine mark (the owner's ask, 2026-10-22): a person sees which provider each bot runs
+  // on at a glance. The icons rail collapses the row to the avatar, where A16 removed the mark.
+  it.each<[SidebarDensity, number]>([["comfortable", 1], ["icons", 0]])("in a Simple mode %s row, shows the model the expected number of times", (density, expected) => {
     fixture.advanced = false;
     const found = badges(render(bot("claude", "opus"), density));
-    expect(found).toHaveLength(1);
-    expect(found[0]).toContain('aria-label="Model: Opus 4.1 (Claude)"');
+    expect(found).toHaveLength(expected);
+    if (expected) expect(found[0]).toContain('aria-label="Model: Opus 4.1 (Claude)"');
   });
 
   it("shows no badge while the bot's engine is missing", () => {
