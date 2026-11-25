@@ -645,11 +645,12 @@ describe("thread control placement", () => {
     expect(controls[1].split(" ")).toEqual(expect.arrayContaining(["shrink-0", "@max-[30rem]/chathead:ml-auto", "@max-[30rem]/chathead:flex-wrap"]));
   });
 
-  it("keeps the Chief of Staff badge on one line instead of stacking a word per line", () => {
+  it("leaves the Chief of Staff badge out of the Advanced header (Merkle A17)", () => {
+    // Jose asked the header to carry only the name pill, the thread picker, copy and download on the left.
     const markup = renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, busy: false, chiefOfStaff: true } }));
-    const badge = /<span title="Chief of Staff" class="([^"]*)"><svg[^>]*lucide-crown[^]*?<\/svg> <span class="([^"]*)">Chief of Staff<\/span>/.exec(markup)!;
-    expect(badge[1].split(" ")).toEqual(expect.arrayContaining(["shrink-0", "whitespace-nowrap"]));
-    expect(badge[2].split(" ")).toContain("@max-4xl/chathead:sr-only");
+    const header = markup.slice(0, markup.indexOf("data-composer-row"));
+    expect(header).not.toContain('title="Chief of Staff"');
+    expect(header).not.toContain("lucide-crown");
   });
 
   it("shows the selected thread's model and its level under the composer's field in Advanced", () => {

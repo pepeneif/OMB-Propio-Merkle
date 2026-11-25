@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Copy, Download, Search } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { ELEVATED_HEADER_FLOAT, ELEVATED_HEADER_HOVER } from "./elevated";
 import { t } from "@/lib/i18n";
 import { contextChip, contextDetail, contextShare, formatTokens, lastTurnDetail, uncachedInput, usageChip, usageDetail } from "@/lib/usage";
 import { copyTranscriptToClipboard, downloadMarkdownTranscript, formatTranscriptMarkdown, slugifyTranscriptFilename } from "@/lib/export-transcript";
@@ -81,7 +82,7 @@ export function HeaderUsageChip({ bot }: { bot: Bot }) {
     <button
       type="button"
       onClick={() => dispatch({ type: "toggleSettings", open: true, section: "usage" })}
-      className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline/40 bg-raised/60 px-2.5 text-[12px] tabular-nums text-ink-secondary transition-colors hover:bg-raised hover:text-ink"
+      className={cn("flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[12px] tabular-nums text-ink-secondary", ELEVATED_HEADER_FLOAT, ELEVATED_HEADER_HOVER)}
       title={detail}
       data-testid="header-usage"
     >

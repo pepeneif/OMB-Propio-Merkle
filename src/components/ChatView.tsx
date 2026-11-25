@@ -90,7 +90,7 @@ import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaffBadge } from "./BotRole";
 import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill"; import { HeaderShare } from "./bot-access/HeaderShare"; import { ThreadPresenceFaces } from "./TeamPresence"; import { useStoreRef } from "@/state/store-ref"; import { sameFields, useStoreDispatch, useStoreSelector } from "@/state/store-select"; import { sameDrawnBots } from "@/lib/drawn-bots"; import { chatActivityMessages, useChatActivity } from "./ChatActivity";
-import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated"; import { NewThreadHeaderButton } from "./NewThreadHeaderButton"; import { HeaderThreadTabs, useThreadTabsShown } from "./HeaderThreadTabs";
+import { ELEVATED_FLOAT, ELEVATED_HEADER_FLOAT, ELEVATED_HEADER_HOVER, ELEVATED_HOVER } from "./elevated"; import { HeaderThreadTabs, useThreadTabsShown } from "./HeaderThreadTabs";
 import { ChatHeadExport, ChatHeadFind, HeaderUsageChip } from "./ChatHeadTools"; import { ChatHeadInboxButton } from "./ChatHeadInbox";
 import { ModelPicker } from "./ModelPicker"; import { useFailedTurnFix } from "./FailedTurnFix";
 import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine"; import { ownChatStarted } from "@/state/team-chats"; import { isNewChatThread } from "@/state/new-chat";
@@ -946,7 +946,7 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
         )}
       >
         <div data-chathead-row className={cn("flex items-center justify-between", phone ? "gap-2" : "@max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1 @min-[30rem]/chathead:grid @min-[30rem]/chathead:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(max-content,1fr)]")}>
-        <div data-chathead-identity className={cn("flex min-w-0 items-center gap-2", phone ? "flex-1" : "@max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-2 @min-[30rem]/chathead:justify-self-center", simpleHead && phone && "justify-center")} style={headerNoDragStyle}>{headTabs && <HeaderThreadTabs bot={bot} />}
+        <div data-chathead-identity className={cn("flex min-w-0 items-center gap-1.5", phone ? "flex-1" : "@max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-1 @min-[30rem]/chathead:justify-self-start", simpleHead && phone && "justify-center")} style={headerNoDragStyle}>{headTabs && <HeaderThreadTabs bot={bot} />}
           {simpleHead ? (
             <ChatHeadPill
               bot={bot} switcher={!inForkPanel}
@@ -955,7 +955,7 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
               onToggle={() => dispatch({ type: "toggleSettings", open: !state.settingsOpen })}
             />
           ) : advanced ? (
-            <div data-chathead-pill className="flex min-w-0 items-center gap-1">
+            <div data-chathead-pill className={cn("flex h-9 min-w-0 items-center gap-0.5 rounded-full px-3", ELEVATED_HEADER_FLOAT, ELEVATED_HEADER_HOVER)}>
               <RenameTitle
                 value={bot.name}
                 onCommit={(name) => {
@@ -973,7 +973,6 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
                 editButtonClassName="size-6 rounded-full"
                 inputClassName="max-w-[220px] rounded-full bg-inset px-2 py-0.5 text-[14px] font-semibold"
               />
-              {chiefOfStaffBadge(bot)}
             </div>
           ) : (
             <button
@@ -1030,7 +1029,8 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
           {phone && <UsageAlert engine={bot.modelSelection?.instanceId} />}
           {/* Simple mode keeps the model here and moves only ⋯ into the bot panel; Advanced shows it under the composer's field. */}
           {!phone && (!advanced || canWrite === false) && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} folded={state.settingsOpen || state.computerOpen} />}
-          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, store.state(), showThreads)} />{!phoneMenu && <WatchScreenButton botId={bot.id} messages={messages} liveTools={liveTools} place={place} />}{!phone && <ChatHeadInboxButton />}
+          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, store.state(), showThreads)} />{!phoneMenu && <WatchScreenButton botId={bot.id} messages={messages} liveTools={liveTools} place={place} />}
+          {!phone && <ChatHeadInboxButton />}
           <PinnedMessagesMenu
             pins={pinnedPreview(messages, bot.pinnedMessageId, bot.name)}
             triggerClassName={cn(ELEVATED_FLOAT, ELEVATED_HOVER)}
@@ -1042,14 +1042,16 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
             onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
             className={cn(
               "relative",
-              "flex size-9 items-center justify-center rounded-full", ELEVATED_FLOAT, ELEVATED_HOVER,
-              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
+              "flex size-9 items-center justify-center rounded-full",
+              // Merkle (A17): in Advanced the header icons carry no fill; Simple keeps its floating buttons.
+              advanced ? "transition-colors" : cn(ELEVATED_FLOAT, ELEVATED_HOVER),
+              state.computerOpen ? "text-accent" : "text-ink-secondary hover:bg-raised hover:text-ink",
             )}
             title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
           >
             <Monitor size={16} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
           </button>}
-          <HeaderShare bot={bot} />{!inForkPanel && <NewThreadHeaderButton botId={bot.id} />}{phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
+          <HeaderShare bot={bot} />{phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
         </div>
       </div>
