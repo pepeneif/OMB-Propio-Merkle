@@ -6127,5 +6127,10 @@
   "skillBurger.pill.running": "Çalışıyor… {count}",
   "skillBurger.pill.stopped": "Durdu",
   "skillBurger.pill.addPath": "Yol ekle",
-  "skillBurger.card.madeBy": "{name} tarafından yapıldı"
+  "skillBurger.card.madeBy": "{name} tarafından yapıldı",
+  "chat.automation.showInChatHelp": "Rutin güncellemeleri ve biten çalışmalar sohbette kalır. Sizi bekleyen her şey her zaman görünür.",
+  "chat.automation.showToolsHelp": "Bir botun sohbette çalıştırdığı her aracı göster. Hatalar her zaman görünür.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Özetiniz #{title} içinde hazır."
 }

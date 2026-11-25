@@ -6632,5 +6632,6 @@
   "skillBurger.pill.running": "Ejecutando… {count}",
   "skillBurger.pill.stopped": "Detenido",
   "skillBurger.pill.addPath": "Añadir camino",
-  "skillBurger.card.madeBy": "Hecho por {name}"
+  "skillBurger.card.madeBy": "Hecho por {name}",
+  "chat.briefWaiting": "Tu informe está listo en #{title}."
 }

@@ -21,11 +21,10 @@ import {
   FolderTree,
   Hamburger,
   RefreshCw,
-  Rocket,
   Settings as SettingsIcon,
   Smartphone,
   UserRound,
-  UsersRound,
+  Network,
   Zap,
 } from "lucide-react";
 
@@ -311,14 +310,13 @@ export function phoneDevicesItem(state: PhonePlaceState, place: string, onSelect
   };
 }
 
-export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, onTeamMap, onFiles, onPublishedApps, onSkillBurgers, onTeamFiles, archived }: {
+export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, onTeamMap, onFiles, onSkillBurgers, onTeamFiles, archived }: {
   activeView: string;
   automationsNeedYou: boolean;
   onAutomations: () => void;
   onTeamMap: () => void;
   /** set once My Cloud's files are ready to open */
   onFiles?: () => void;
-  onPublishedApps?: () => void;
   onSkillBurgers?: () => void;
   /** set only on a Team Cloud: its shared folder */
   onTeamFiles?: () => void;
@@ -326,9 +324,8 @@ export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, o
 }): SidebarMenuItem[] {
   return [
     { key: "automations", label: t("sidebar.nav.automations"), icon: <Zap size={16} />, active: activeView === "routines", attention: automationsNeedYou, onSelect: onAutomations },
-    { key: "team-map", label: t("sidebar.nav.teamMap"), icon: <UsersRound size={16} />, active: activeView === "team-map", onSelect: onTeamMap },
+    { key: "team-map", label: t("sidebar.nav.teamMap"), icon: <Network size={16} />, active: activeView === "team-map", onSelect: onTeamMap },
     ...(onFiles ? [{ key: "files", label: t("sidebar.nav.files"), icon: <FolderOpen size={16} />, active: activeView === "files", onSelect: onFiles }] : []),
-    ...(onPublishedApps ? [{ key: "published-apps", label: t("sidebar.nav.publishedApps"), icon: <Rocket size={16} />, active: activeView === "published-apps", onSelect: onPublishedApps }] : []),
     ...(onSkillBurgers ? [{ key: "skill-burgers", label: t("skillBurger.list.title"), icon: <Hamburger size={16} />, active: activeView === "skill-burgers", onSelect: onSkillBurgers }] : []),
     ...(onTeamFiles ? [{ key: "team-files", label: t("sidebar.nav.teamFiles"), icon: <FolderTree size={16} />, active: activeView === "team-files", onSelect: onTeamFiles }] : []),
     ...(archived?.count ? [{ key: "archived", label: t("sidebar.archived.title"), icon: <Archive size={16} />, value: String(archived.count), onSelect: archived.open }] : []),
@@ -611,7 +608,6 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
         onAutomations: () => dispatch({ type: "showRoutines", view: "list" }),
         onTeamMap: () => dispatch({ type: "showTeamMap" }),
         onFiles: filesReady ? () => dispatch({ type: "showFiles" }) : undefined,
-        onPublishedApps: () => dispatch({ type: "showPublishedApps" }),
         onSkillBurgers: skillBurger ? () => dispatch({ type: "showSkillBurgers" }) : undefined,
         onTeamFiles: state.config?.team ? () => dispatch({ type: "showTeamFiles" }) : undefined,
         archived: account?.archived,

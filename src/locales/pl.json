@@ -7328,5 +7328,10 @@
   "skillBurger.pill.running": "Trwa… {count}",
   "skillBurger.pill.stopped": "Zatrzymano",
   "skillBurger.pill.addPath": "Dodaj ścieżkę",
-  "skillBurger.card.madeBy": "Utworzone przez {name}"
+  "skillBurger.card.madeBy": "Utworzone przez {name}",
+  "chat.automation.showInChatHelp": "Aktualizacje rutyn i zakończone uruchomienia zostają w czacie. To, co cię potrzebuje, zawsze jest widoczne.",
+  "chat.automation.showToolsHelp": "Pokazuj każde narzędzie, które bot uruchamia w czacie. Błędy są zawsze widoczne.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Twój brief jest gotowy w #{title}."
 }

@@ -4037,5 +4037,10 @@
   "skillBurger.pill.running": "En cours… {count}",
   "skillBurger.pill.stopped": "Arrêté",
   "skillBurger.pill.addPath": "Ajouter le chemin",
-  "skillBurger.card.madeBy": "Créé par {name}"
+  "skillBurger.card.madeBy": "Créé par {name}",
+  "chat.automation.showInChatHelp": "Les mises à jour des routines et les exécutions terminées restent dans la discussion. Ce qui vous attend s'affiche toujours.",
+  "chat.automation.showToolsHelp": "Affiche chaque outil qu'un bot exécute dans la discussion. Les erreurs s'affichent toujours.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Votre brief est prêt dans #{title}."
 }

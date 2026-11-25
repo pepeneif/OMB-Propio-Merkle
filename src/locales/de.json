@@ -4362,5 +4362,10 @@
   "skillBurger.pill.running": "Läuft… {count}",
   "skillBurger.pill.stopped": "Angehalten",
   "skillBurger.pill.addPath": "Weg hinzufügen",
-  "skillBurger.card.madeBy": "Erstellt von {name}"
+  "skillBurger.card.madeBy": "Erstellt von {name}",
+  "chat.automation.showInChatHelp": "Routine-Updates und beendete Läufe bleiben im Chat. Was dich braucht, wird immer gezeigt.",
+  "chat.automation.showToolsHelp": "Zeigt jedes Tool, das ein Bot im Chat ausführt. Fehler erscheinen immer.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Dein Brief liegt in #{title} bereit."
 }

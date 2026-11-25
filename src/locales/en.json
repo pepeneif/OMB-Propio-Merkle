@@ -11881,5 +11881,10 @@
   "skillBurger.pill.running": "Running… {count}",
   "skillBurger.pill.stopped": "Stopped",
   "skillBurger.pill.addPath": "Add path",
-  "skillBurger.card.madeBy": "Made by {name}"
+  "skillBurger.card.madeBy": "Made by {name}",
+  "chat.automation.showInChatHelp": "Routine updates and finished runs stay in the chat. Anything that still needs you always shows.",
+  "chat.automation.showToolsHelp": "Show each tool a bot runs in the chat. Errors always show.",
+  "composer.setupTask": "Set up this bot",
+  "composer.emoji": "Emoji",
+  "chat.briefWaiting": "Your brief is ready in #{title}."
 }

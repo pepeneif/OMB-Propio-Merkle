@@ -4309,5 +4309,10 @@
   "skillBurger.pill.running": "Виконується… {count}",
   "skillBurger.pill.stopped": "Зупинено",
   "skillBurger.pill.addPath": "Додати шлях",
-  "skillBurger.card.madeBy": "Створено: {name}"
+  "skillBurger.card.madeBy": "Створено: {name}",
+  "chat.automation.showInChatHelp": "Оновлення рутин і завершені запуски залишаються в чаті. Те, що потребує вас, видно завжди.",
+  "chat.automation.showToolsHelp": "Показувати кожен інструмент, який бот запускає в чаті. Помилки видно завжди.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Ваш бриф готовий у #{title}."
 }

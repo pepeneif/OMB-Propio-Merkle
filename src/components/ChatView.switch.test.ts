@@ -157,7 +157,8 @@ describe("switching between two long chats", () => {
     expect(first.mounted, "components mounted before the first paint").toBeLessThanOrEqual(200);
     expect(rows().length).toBe(72);
     expect(rows()[0]!.getAttribute("data-mid")).toBe("b-ask-0");
-    expect(mounted, "components mounted in all").toBeLessThanOrEqual(850);
+    // Merkle: the bubble-resize handle (A13/A14) mounts one part per bubble, +48 here; upstream alone drew 825.
+    expect(mounted, "components mounted in all").toBeLessThanOrEqual(900);
     expect(countBy(again, (entry) => entry.component), "a row drawn twice").toEqual(new Map());
     expect(chat, "the chat drawn for the click and once for the rows above").toBe(2);
     expect(commits).toBeLessThanOrEqual(5);

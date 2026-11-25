@@ -10445,5 +10445,10 @@
   "skillBurger.pill.running": "執行中… {count}",
   "skillBurger.pill.stopped": "已停止",
   "skillBurger.pill.addPath": "加入路徑",
-  "skillBurger.card.madeBy": "由 {name} 建立"
+  "skillBurger.card.madeBy": "由 {name} 建立",
+  "chat.automation.showInChatHelp": "例行更新與已完成的執行會留在對話中。需要你處理的內容一律顯示。",
+  "chat.automation.showToolsHelp": "顯示機器人在對話中執行的每個工具。錯誤一律顯示。",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "你的簡報已在 #{title} 中準備好。"
 }

@@ -8166,5 +8166,10 @@
   "skillBurger.pill.running": "実行中… {count}",
   "skillBurger.pill.stopped": "停止",
   "skillBurger.pill.addPath": "手順を追加",
-  "skillBurger.card.madeBy": "{name} が作成"
+  "skillBurger.card.madeBy": "{name} が作成",
+  "chat.automation.showInChatHelp": "ルーティンの更新と完了した実行はチャットに残ります。あなたが必要なものは常に表示されます。",
+  "chat.automation.showToolsHelp": "チャットでボットが実行する各ツールを表示します。エラーは常に表示されます。",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "ブリーフは #{title} にあります。"
 }

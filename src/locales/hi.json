@@ -3889,5 +3889,10 @@
   "skillBurger.pill.running": "चल रहा है… {count}",
   "skillBurger.pill.stopped": "रुका",
   "skillBurger.pill.addPath": "रास्ता जोड़ें",
-  "skillBurger.card.madeBy": "{name} ने बनाया"
+  "skillBurger.card.madeBy": "{name} ने बनाया",
+  "chat.automation.showInChatHelp": "रूटीन अपडेट और पूरी हुई रन चैट में रहते हैं। जो आपको चाहिए वह हमेशा दिखता है।",
+  "chat.automation.showToolsHelp": "चैट में बॉट जो भी टूल चलाता है उसे दिखाएँ। त्रुटियाँ हमेशा दिखती हैं।",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "आपका ब्रीफ #{title} में तैयार है।"
 }
