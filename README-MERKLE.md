@@ -1,22 +1,24 @@
 # OMB-Propio-Merkle
 
 > **Versión propia de Merkle.Space** — instalación **independiente** de OpenMausBot, hoy en
-> **v0.1.171 + parches 022–031** (imagen `v0.1.171-cos-r10`).
+> **v0.1.171 + parches 022–032** (imagen `v0.1.171-cos-r11`).
 
 Repo propio de **Merkle.Space** para nuestro uso personal. **No es un fork de trabajo del upstream**:
 no seguimos conectados a `milind-soni/OpenMausBot` para mandar parches. Es nuestra copia, con nuestras
 modificaciones, y aquí vive la bitácora.
 
 - **Repo:** `pepeneif/OMB-Propio-Merkle` (público, independiente).
-- **Rama por defecto:** `merkle/v171-cos-r10` → `e2cc7b13b`.
-- **Estado:** idéntico al árbol con el que corre **alfa** (`openmausbot:v0.1.171-cos-r10`,
-  digest `3f52d5c90d26`).
+- **Rama por defecto:** `merkle/v171-cos-r10` → `e2cc7b13b` (r10). El estado vigente, con el 032, está en
+  `merkle/v171-p0008` → **`f47143010`**; esa rama es la que hay que usar de ahora en adelante.
+- **Estado:** idéntico al árbol con el que corren **alfa y beta** (`openmausbot:v0.1.171-cos-r11`,
+  digest `cef9c6fa0cf5`).
 - El repo `pepeneif/OMB-Merkle` es el fork histórico del upstream (v0.1.130 → 171). **Este** repo es
   el que usamos nosotros; su historia desciende de `merkle/v170-cos` (`9947747aa`) y no se reescribió.
 
 ## Ramas
 
-- **`merkle/v171-cos-r10`** = **estado vigente**: v0.1.171 + parches 022–031. Es lo que corre alfa.
+- **`merkle/v171-p0008`** (`f47143010`) = **estado vigente**: v0.1.171 + parches 022–032. Es lo que corren alfa y beta.
+- **`merkle/v171-cos-r10`** (`e2cc7b13b`) = anterior: v0.1.171 + 022–031. Queda como rollback.
 - `merkle/v170-cos` (`9947747aa`) = anterior (v0.1.170 + 022 + 023 + gate).
 - `merkle/v169-cos` (`d040e854`) = v0.1.169 + parches 001–022 + cosméticos + riel. Fue alfa y beta.
 - `merkle/v169-port`, `merkle/v169-mcpgate`, `merkle/v167-port`, `merkle/v165-port`, `merkle/v153-port`,
@@ -57,14 +59,15 @@ Los `.patch` uno por uno están en `versiones-omb/parches/v171/` del sitio de da
 | 029 | La pastilla del hilo ya no muestra estadísticas de caché; el tooltip lleva el título completo |
 | 030 | `setup.computer` de 6,035–6,537 ms a 195–906 ms: `ControlMaster` forzado en la línea de comandos, concesión persistida con sonda y prueba perezosa del escritorio |
 | 031 | `MAX_SUMMARY_BYTES` 6,000 → 24,000 y `DEFAULT_REBUILD_BYTES` 24,000 → 50,000; recortes consecutivos agrupados |
+| 032 | Al compactar se retira la lectura vieja del contexto (el chip deja de repetir el % previo) y el segundo clic avisa en vez de callarse |
 
 ## Verificación
 
 - `tsc --noEmit` limpio en cliente y servidor; `pre-push` con **128 guards** en verde.
 - Pruebas dirigidas por parche: 81 del módulo de compactación (031), 58 de `mcp-gate-config` + `mcp-gate` (026),
   33 de `TaskPicker` (029), 105 de ChatView/TaskPicker/transcript (027), 61 de la concesión (019).
-- Imagen `openmausbot:v0.1.171-cos-r10` (`3f52d5c90d26`, 2.13 GB), alfa `Up (healthy)` desde el
-  2026-11-21 05:44:03 UTC, health `0.1.171` con `problems: []`.
+- Imagen `openmausbot:v0.1.171-cos-r11` (`cef9c6fa0cf5`, 3.35 GB), en alfa `Up (healthy)` desde el
+  2026-11-25 08:18:55 UTC y en beta desde el 08:22:17 UTC, las dos con health `0.1.171` y `problems: []`.
 - Turno real con navegador validado: «abre example.com» → `Example Domain`, PNG en `browser-frames/`
   y **0** imágenes publicadas en el hilo.
 - `context.compactAt` en alfa: **150,000**.
@@ -80,6 +83,6 @@ Los `.patch` uno por uno están en `versiones-omb/parches/v171/` del sitio de da
 
 ## Reversión
 
-- Alfa: `/home/pepeneif/revertir-r10.sh` (compose a `r8`) y `revertir-r8.sh`.
+- Alfa y beta: `/home/pepeneif/revertir-r11.sh` (compose a `r10`); más atrás, `revertir-r10.sh` y `revertir-r8.sh`.
 - Beta: `/home/pepeneif/deploy-v165/docker-compose.yml.bak-pre-r3b-20261118T031927Z` → `docker compose up -d`
   (regresa a `v0.1.169-r3b`).
