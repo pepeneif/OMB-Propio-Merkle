@@ -343,10 +343,13 @@ const levelRows = () => fixture.menus.findLast((menu) => menu.ariaLabel === "Add
 const pickLevel = (mode: string) => levelRows().find((row) => row.key === `approval:${mode}`)!.onSelect!();
 
 describe("thread control placement", () => {
-  it.each([true, false])("leaves All threads out of the header in both modes (advanced: %s)", (advanced) => {
+  // Merkle (A16, v180-r2): Jose asked the r11's thread picker back next to the bot's name in Advanced mode,
+  // because the v180 thread tabs ship off. With the tabs on, the tabs are the switcher and no picker renders.
+  it.each([true, false])("keeps All threads in the Advanced header while the tabs are off (advanced: %s)", (advanced) => {
     fixture.advanced = advanced;
     const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
-    expect(markup).not.toContain('aria-label="All threads"');
+    if (advanced) expect(markup).toContain('aria-label="All threads"');
+    else expect(markup).not.toContain('aria-label="All threads"');
     expect(markup.includes('data-testid="chat-more"')).toBe(advanced);
     fixture.advanced = true;
   });

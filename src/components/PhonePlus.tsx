@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { ComposerPlusMenu } from "./ComposerPlusMenu";
 import { usePlaceMenuItem } from "./PlaceChip";
 
-type PhonePlusProps = Pick<ComponentProps<typeof ComposerPlusMenu>, "onAttach" | "goal" | "teach" | "approval" | "callBotId" | "quiet">;
+type PhonePlusProps = Pick<ComponentProps<typeof ComposerPlusMenu>, "onAttach" | "goal" | "teach" | "approval" | "callBotId" | "quiet" | "attachInMenu">;
 
 function PhonePlusWithPlace({ place, quiet, ...rest }: PhonePlusProps & { place: Parameters<typeof usePlaceMenuItem>[0] }) {
   const item = usePlaceMenuItem(place);

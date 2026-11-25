@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n";
 import type { Bot, Task } from "@/state/store";
 import { ApprovalChip, GoalToggle } from "./ComposerPlusMenu";
 import { ComposerEmoji } from "./ComposerEmoji";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Paperclip } from "lucide-react";
 import { ModelPicker } from "./ModelPicker";
 import { PhonePlus } from "./PhonePlus";
 import { PlaceChip } from "./PlaceChip";
@@ -37,8 +37,20 @@ export function ComposerAdvancedTools({ profile, bot, task, locked, remoteClient
   const ownLevel = approval && profile && bot && approvalModeFor(bot) !== approvalModeFor(profile);
   return (
     <div data-composer-tools className="flex min-w-0 flex-wrap items-center gap-1">
+      {/* Merkle: Attach stays a button of its own, left of /setup and the emoji picker. The + keeps the rest. */}
       {!locked && (
-        <PhonePlus quiet onAttach={onAttach} goal={goal} teach={teach} callBotId={callBotId}
+        <button
+          type="button"
+          onClick={onAttach}
+          aria-label={t("composer.attachFiles")}
+          title={t("composer.attachFiles")}
+          className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink"
+        >
+          <Paperclip size={16} strokeWidth={1.75} absoluteStrokeWidth />
+        </button>
+      )}
+      {!locked && (
+        <PhonePlus quiet attachInMenu={false} onAttach={onAttach} goal={goal} teach={teach} callBotId={callBotId}
           approval={approval && bot && { name: bot.name, choice: approval }} place={place} />
       )}
       {bot && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} quiet />}

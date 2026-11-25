@@ -89,8 +89,9 @@ import { AttachmentGallery, collectMessageFiles, replyAttachmentGroup, splitMess
 import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaffBadge } from "./BotRole";
-import { BotActivityPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill"; import { HeaderShare } from "./bot-access/HeaderShare"; import { ThreadPresenceFaces } from "./TeamPresence"; import { useStoreRef } from "@/state/store-ref"; import { sameFields, useStoreDispatch, useStoreSelector } from "@/state/store-select"; import { sameDrawnBots } from "@/lib/drawn-bots"; import { chatActivityMessages, useChatActivity } from "./ChatActivity";
+import { BotActivityPicker, TaskPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill"; import { HeaderShare } from "./bot-access/HeaderShare"; import { ThreadPresenceFaces } from "./TeamPresence"; import { useStoreRef } from "@/state/store-ref"; import { sameFields, useStoreDispatch, useStoreSelector } from "@/state/store-select"; import { sameDrawnBots } from "@/lib/drawn-bots"; import { chatActivityMessages, useChatActivity } from "./ChatActivity";
 import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated"; import { NewThreadHeaderButton } from "./NewThreadHeaderButton"; import { HeaderThreadTabs, useThreadTabsShown } from "./HeaderThreadTabs";
+import { ChatHeadExport, ChatHeadFind, HeaderUsageChip } from "./ChatHeadTools"; import { ChatHeadInboxButton } from "./ChatHeadInbox";
 import { ModelPicker } from "./ModelPicker"; import { useFailedTurnFix } from "./FailedTurnFix";
 import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine"; import { ownChatStarted } from "@/state/team-chats"; import { isNewChatThread } from "@/state/new-chat";
 import { useChatFindRequests, useChatFindShortcut } from "@/lib/chat-find";
@@ -756,8 +757,6 @@ const MessagesList = memo(function MessagesList({
   );
 });
 
-const CHATHEAD_PILL = `flex min-w-0 items-center gap-2 rounded-full py-0.5 pl-1.5 text-ink ${ELEVATED_FLOAT}`;
-
 export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = false }: { bot: Bot; inForkPanel?: boolean }) {
   const bot = useMemo(() => currentTaskBot(profile), [profile]);
   const state = useStoreSelector((s) => ({ computerStart: s.computerStarts[profile.id], mascotMotion: s.mascotMotion?.botId === profile.id ? s.mascotMotion : null, instances: s.instances, config: s.config, focusMessage: s.focusMessage, forkPanelOpen: s.forkPanel !== null, settingsOpen: s.settingsOpen, computerOpen: s.computerOpen, error: s.error, notice: s.notice }), sameFields), dispatch = useStoreDispatch(), store = useStoreRef();
@@ -943,7 +942,7 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
         className={cn(
           // A container query never matches the container itself, so the row that wraps is the child below.
           "@container/chathead",
-          simpleHead ? "px-5 pt-2.5 pb-2.5 max-md:pl-14 max-md:pr-3" : "px-5 py-3 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
+          simpleHead ? "px-5 pt-1 pb-1 max-md:pl-14 max-md:pr-3" : "px-5 py-1.5 pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
         )}
       >
         <div data-chathead-row className={cn("flex items-center justify-between", phone ? "gap-2" : "@max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1 @min-[30rem]/chathead:grid @min-[30rem]/chathead:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(max-content,1fr)]")}>
@@ -956,23 +955,7 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
               onToggle={() => dispatch({ type: "toggleSettings", open: !state.settingsOpen })}
             />
           ) : advanced ? (
-            <div data-chathead-pill className={cn(CHATHEAD_PILL, "pr-1")}>
-              <button
-                type="button"
-                onClick={() => dispatch({ type: "toggleSettings", open: true })}
-                className="flex shrink-0 items-center justify-center rounded-full"
-                title={t("chat.openProfile")}
-                aria-label={t("chat.openProfileAria", { name: bot.name })}
-              >
-                <BotAvatar
-                  bot={bot}
-                  state={stateForBot({ ...bot, messages })}
-                  size={24}
-                  motion={headerMotion}
-                  motionKey={mascotMotion?.nonce ?? 0}
-                  animated={headerAnimated}
-                />
-              </button>
+            <div data-chathead-pill className="flex min-w-0 items-center gap-1">
               <RenameTitle
                 value={bot.name}
                 onCommit={(name) => {
@@ -1008,6 +991,9 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
               <ChevronRight size={14} aria-hidden="true" className="-ml-2.5 w-0 shrink-0 text-ink-secondary opacity-0 transition-[width,margin,opacity] duration-150 group-hover:ml-0 group-hover:w-3.5 group-hover:opacity-100 group-focus-visible:ml-0 group-focus-visible:w-3.5 group-focus-visible:opacity-100" />
             </button>
           )}
+          {/* Merkle (A16): with the thread tabs off, the picker sits next to the name as in the r11. */}
+          {advanced && !phone && !simpleHead && !headTabs && <TaskPicker bot={bot} variant="header" />}
+          {advanced && !phone && !simpleHead && <ChatHeadExport bot={bot} messages={messages} />}
           {!phone && !simpleHead && <ChatHeadRole bot={bot} />}<span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>{!simpleHead && privateChat && <TeamPrivateHeader />}{!simpleHead && ownHelper && <TeamOwnHelperHeader />}{!simpleHead && sharedChat && team && <TeamSharedHeader team={team} onlyPeopleAdded={bot.onlyPeopleAdded} sharedWith={currentTask?.sharedWith?.name} />}
           {!simpleHead && !bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">{t("chat.teammatesWorking")}</span>}
           {(advanced || remoteClient) && awayFromMainThread(profile, showThreads) && (
@@ -1039,10 +1025,12 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
             </button>
           )}
           <ThreadContextWarning bot={bot} messages={messages} />
+          <ChatHeadFind findOpen={findOpen} onFind={() => setFindOpen((open) => !open)} />
+          <HeaderUsageChip bot={bot} />
           {phone && <UsageAlert engine={bot.modelSelection?.instanceId} />}
           {/* Simple mode keeps the model here and moves only ⋯ into the bot panel; Advanced shows it under the composer's field. */}
           {!phone && (!advanced || canWrite === false) && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} folded={state.settingsOpen || state.computerOpen} />}
-          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, store.state(), showThreads)} />{!phoneMenu && <WatchScreenButton botId={bot.id} messages={messages} liveTools={liveTools} place={place} />}
+          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, store.state(), showThreads)} />{!phoneMenu && <WatchScreenButton botId={bot.id} messages={messages} liveTools={liveTools} place={place} />}{!phone && <ChatHeadInboxButton />}
           <PinnedMessagesMenu
             pins={pinnedPreview(messages, bot.pinnedMessageId, bot.name)}
             triggerClassName={cn(ELEVATED_FLOAT, ELEVATED_HOVER)}
