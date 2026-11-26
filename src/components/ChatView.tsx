@@ -430,6 +430,8 @@ const Bubble = memo(function Bubble({
           className={cn(
             tabled ? "w-full" : "w-fit",
             simple ? !tabled && SIMPLE_BUBBLE_MAX : "max-w-[min(var(--chat-bubble-max),var(--chat-bubble-pct))] rounded-2xl text-[15px] leading-relaxed",
+            !simple && "bbl",
+            !simple && (user ? "bbl-user" : "bbl-bot"),
             emerging && !streamedReply(message.id) && "turn-answer",
             user && webhookView
               ? cn("overflow-hidden border border-accent/25 bg-card text-ink", simple ? cn("rounded-[18px]", SIMPLE_BUBBLE_TEXT) : "shadow-[0_10px_30px_rgba(0,0,0,0.18)]")
