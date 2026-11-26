@@ -27,7 +27,7 @@ modificaciones y la bitácora.
 ## La línea v0.1.180 (alfa, 2026-11-25/26)
 
 Árbol `/home/pepeneif/omb-180-cos` (worktree de `omb-140-src`), rama `merkle/v180-cos` desde
-**`v0.1.180`** (`5478065c4`). El port son **126 archivos, +2,829/−533**. Del linaje v171 se portaron
+**`v0.1.180`** (`5478065c4`). El port son **130 archivos, +2,836/−538**. Del linaje v171 se portaron
 el 022 (captura del navegador a disco), el 023 (gate MCP de tres herramientas), el 024 (fuera la
 pastilla «Chat activity»), el 031 (compactación de 24k) y el arreglo de `isImageModel` en
 `fastModelFor`; el **028** se rehízo porque `MESSAGE_PAGE_SIZE` vive ahora en
