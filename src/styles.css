@@ -64,7 +64,7 @@
 }
 .mention-editor textarea::selection {
   color: var(--color-ink);
-  background: var(--color-raised-hover);
+  background: var(--color-selection);
 }
 /* Safari zooms smaller form text on focus. In a standalone phone window that
    can leave the header under the status bar after the keyboard closes. Keep
@@ -215,6 +215,9 @@
 /* Tokens that no utility generates — declared outside `@theme` so Tailwind
    can't tree-shake them away, and so a skin can redefine them freely. */
 :root {
+  /* Selected text: the same tone in the chat, in the composer and in every
+     card, so a highlight reads the same wherever the person drags. */
+  --color-selection: var(--color-raised-hover);
   --chat-bubble-max: 35rem;
   --chat-bubble-pct: 80%;
   --chat-card-pct: 88%;
@@ -1300,7 +1303,7 @@
   max-width: min(var(--bubble-user, var(--chat-bubble-max)), var(--chat-bubble-pct));
 }
 .bbl-run {
-  width: min(var(--bubble-run, 22rem), var(--chat-card-pct));
+  width: min(var(--bubble-run, 21rem), var(--chat-card-pct));
   max-width: var(--chat-card-pct);
 }
 /* El mango solo existe en escritorio: en tactil no hay hover y chocaria con el
@@ -2314,7 +2317,7 @@ body {
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-accent) 45%, transparent);
+  background: var(--color-selection);
   color: var(--color-ink);
 }
 
@@ -3985,6 +3988,9 @@ button:disabled.bg-danger {
 .burger-fold[data-folded="true"] { grid-template-rows: 0fr; opacity: 0; }
 .burger-fold > ol, .burger-fold > div { overflow: hidden auto; min-width: 0; }
 .burger-fold { grid-template-columns: minmax(0, 1fr); }
+/* The card takes the bubble's own width limit, but still shrinks with its
+   column on a narrow pane, as it did when its width was a fixed class. */
+.burger-fold.bbl-run { width: min(var(--bubble-run, 21rem), 100%); max-width: 100%; }
 /* Rows that open to show more (a finished run's steps, its inputs and outcome, a step's replies) keep the landing glow
    but not the drop's height cap. */
 .burger-layer.burger-open { animation: burger-land 1100ms ease-out 180ms both; }

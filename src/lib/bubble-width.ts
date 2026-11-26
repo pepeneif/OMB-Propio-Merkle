@@ -16,8 +16,8 @@ export const BUBBLE_CSS_VAR: Record<BubbleKind, string> = {
 export const BUBBLE_DEFAULT_PX: Record<BubbleKind, number> = {
   bot: 900,
   user: 900,
-  // v140: el cuadro "This run" nace en 22rem (352px), su ancho de la hoja de estilos.
-  run: 352,
+  // La tarjeta de Skill Burger nace en 21rem (336px), su ancho de la hoja de estilos.
+  run: 336,
 };
 
 export const BUBBLE_MIN_PX = 320;
