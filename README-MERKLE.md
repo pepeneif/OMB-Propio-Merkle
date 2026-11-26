@@ -24,6 +24,22 @@ modificaciones y la bitácora.
 - `merkle/v169-port`, `merkle/v169-mcpgate`, `merkle/v167-port`, `merkle/v165-port`, `merkle/v153-port`,
   `merkle/port-v143`, `base-v0.1.140` = etapas anteriores, conservadas como historia.
 
+## La línea v0.1.181 (alfa, 2026-11-26)
+
+Árbol `/home/pepeneif/omb-181-cos`, rama `merkle/v181-cos`, desde **`v0.1.181`** (`4556df23f`,
+148 commits sobre la 180, 604 archivos, +30,462/−5,072). El port de nuestro linaje son los mismos
+130 archivos de la 180 más lo que trajo el merge: **17 conflictos** —los 16 catálogos de idioma
+(ambos lados agregan claves al final, se juntan) y un import en `Sidebar.tsx` (el upstream borró
+`attentionHasRunningWork` y `hasCrossBotRunningWork`)—. `tsc` limpio y 61 pruebas dirigidas en verde.
+
+| Commit | Imagen | Qué trae |
+|---|---|---|
+| `2ff798d87` | `v0.1.181-cos-r1` | La release v0.1.181 con los parches propios de la 180 (022, 023/026, 024, 028, 030, 031, 032 y la UI propia: emojis, compositor a 2 renglones, mango de burbujas, riel de 72 px, cabecera A17, mango en Skill Burger, `--color-selection`) y **el avatar del riel ya no muestra el nombre del cuerpo**: al pasar el cursor sobre un avatar del riel aparecía el `<title>` del SVG con «Star», «Mug», «Lightbulb» en vez del nombre y la descripción del bot. El motor de avatares pone el nombre en `aria-label` y ya no repite un `<title>` |
+
+La 181 **lee y escribe formato 2 igual que la 180** (`server/data-format.ts` = `{writes:2, reads:2}` en
+las dos), así que el volumen de alfa no se toca al cortar: volver a la r5 de la 180 es solo cambiar la
+imagen. Beta sigue en la `v0.1.171-cos-r11` hasta que la 181 lleve un día limpia en alfa.
+
 ## La línea v0.1.180 (alfa, 2026-11-25/26)
 
 Árbol `/home/pepeneif/omb-180-cos` (worktree de `omb-140-src`), rama `merkle/v180-cos` desde
