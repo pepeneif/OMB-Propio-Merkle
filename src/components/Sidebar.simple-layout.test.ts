@@ -135,7 +135,7 @@ describe("Simple-mode sidebar layout", () => {
     expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Work"]);
   });
 
-  it("fades the list's edges in both modes, with the top buttons and the tiles fixed above it", () => {
+  it("fades the list's edges, with the top buttons and the tiles fixed above it, and keeps Advanced's glass", () => {
     fixture.state = { ...fixture.state, bots: [bot("chief", { chiefOfStaff: true, pinned: true }), bot("atlas", { pinned: true }), bot("bea")] };
     const simple = render();
     expect(simple.tree.find((node) => node.type === GlassScrollFrame)!.props.fade).toBe(true);
@@ -146,8 +146,8 @@ describe("Simple-mode sidebar layout", () => {
     expect(simple.root.props.className).toContain("max-md:[--scroll-fade-surface:var(--color-app)]");
     fixture.advanced = true;
     const advanced = render();
-    expect(advanced.tree.find((node) => node.type === GlassScrollFrame)!.props.fade).toBe(true);
-    expect(advanced.root.props.className).toContain("max-md:[--scroll-fade-surface:var(--color-app)]");
+    expect(advanced.tree.find((node) => node.type === GlassScrollFrame)!.props.fade).toBe(false);
+    expect(advanced.root.props.className).not.toContain("--scroll-fade-surface");
   });
 
   it("keeps Advanced's Pinned heading and rows, with the Chief as a row", () => {
@@ -332,14 +332,14 @@ describe("Simple-mode sidebar layout", () => {
     handle.onAvatars(true);
     expect(fixture.storage.get(SIDEBAR_DENSITY_KEY)).toBe("avatars");
     const { root, tree } = render();
-    expect(root.props.className).toContain("w-[92px]");
+    expect(root.props.className).toContain("w-[72px]");
     expect(sectionOrder(tree)).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
     expect(listedBots(tree)).toEqual(["atlas", "bea", "dodo"]);
     expect(headers(tree)).toEqual([]);
     expect(tree.filter((node) => node.type === SidebarRailSeparator)).toHaveLength(2);
     expect(tree.some((node) => node.type === SidebarSearchToggle)).toBe(false);
     expect(edge(tree)?.avatars, "the rail keeps its edge, to drag it open again").toBe(true);
-    expect(edge(tree)?.avatarsWidth).toBe(92);
+    expect(edge(tree)?.avatarsWidth).toBe(72);
     expect(tree.some((node) => node.props["data-sidebar-top-buttons"] !== undefined)).toBe(false);
   });
 
@@ -560,7 +560,7 @@ describe("the sidebar's Unread section", () => {
     let tree = render().tree;
     expect(sectionOrder(tree)).toEqual([UNREAD_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
 
-    rowOf(tree, "dodo").botDrag.row("dodo").onDragStart(dragEvent() as never);
+    rowOf(tree, "dodo").botDrag.handle("dodo").onDragStart(dragEvent() as never);
     tree = render().tree;
     expect(sectionOrder(tree)).toEqual([UNREAD_SECTION_ID, BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
     expect(tree.some((node) => node.props["data-bot-drop-slot"] === "")).toBe(true);

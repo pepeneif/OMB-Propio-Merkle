@@ -186,10 +186,10 @@ export const Transcript = memo(function Transcript({
   }, [dispatch, group.id, group.threadId, retryRequest, roomBusy]);
   const focusedId = focus && !focus.consumed && focus.threadId === group.threadId ? focus.messageId : null;
   const byId = useMemo(() => new Map(transcript.map((message) => [message.id, message])), [transcript]);
-  const textRow = (message: Message, emerging: boolean, eager: boolean) => (
+  const textRow = (message: Message, emerging: boolean, eager: boolean, narration = false) => (
     <RoomTextMessage groupId={group.id} threadId={group.threadId} dm={Boolean(group.dm)} pinned={group.pinnedMessageId === message.id} working={roomBusy}
       message={message} members={members} replyTarget={message.replyToId ? byId.get(message.replyToId) : undefined}
-      emerging={emerging} eager={eager} onReply={onReply} canReact={canReact} phone={phone} locale={locale} localVoice={localVoice} />
+      emerging={emerging} eager={eager} narration={narration} onReply={onReply} canReact={canReact} phone={phone} locale={locale} localVoice={localVoice} />
   );
   const unreadIds = useMemo(() => unreadMessageIds(messages, unreadDividerId), [messages, unreadDividerId]);
   let dividerPlaced = false;
@@ -315,7 +315,7 @@ export const Transcript = memo(function Transcript({
                 forceOpen={fold.messages.some((note) => note.id === focusedId)}
               >
                 {fold.messages.map((note) => (
-                  <div key={note.id} className="contents" data-mid={note.id}>{textRow(note, false, false)}</div>
+                  <div key={note.id} className="contents" data-mid={note.id}>{textRow(note, false, false, true)}</div>
                 ))}
               </TurnNarrationRun>
             )}

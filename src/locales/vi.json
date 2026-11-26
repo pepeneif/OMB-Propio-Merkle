@@ -6209,5 +6209,10 @@
   "server.github.card.description": "Kết nối GitHub để {bot} có thể đẩy công việc lên kho mã của bạn.",
   "server.github.card.connectInApps": "Kết nối GitHub từ thẻ này trong ứng dụng trên máy tính, hoặc trong Ứng dụng.",
   "githubSignIn.title": "Đăng nhập GitHub",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "Cập nhật quy trình và lượt chạy đã xong vẫn ở trong cuộc trò chuyện. Điều cần bạn luôn hiển thị.",
+  "chat.automation.showToolsHelp": "Hiện mọi công cụ bot chạy trong cuộc trò chuyện. Lỗi luôn hiển thị.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Bản tóm tắt của bạn đã sẵn sàng trong #{title}."
 }

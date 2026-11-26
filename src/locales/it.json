@@ -11866,5 +11866,10 @@
   "server.github.card.description": "Connetti GitHub perché {bot} possa inviare il suo lavoro ai tuoi repository.",
   "server.github.card.connectInApps": "Connetti GitHub da questa scheda nell'app sul tuo computer, oppure in App.",
   "githubSignIn.title": "Accesso a GitHub",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "Gli aggiornamenti delle routine e le esecuzioni concluse restano nella chat. Ciò che ti riguarda si vede sempre.",
+  "chat.automation.showToolsHelp": "Mostra ogni strumento che un bot esegue nella chat. Gli errori si vedono sempre.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Il tuo brief è pronto in #{title}."
 }

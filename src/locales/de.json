@@ -4469,5 +4469,10 @@
   "server.github.card.description": "Verbinde GitHub, damit {bot} seine Arbeit in deine Repositorys pushen kann.",
   "server.github.card.connectInApps": "Verbinde GitHub über diese Karte in der App auf deinem Computer oder unter Apps.",
   "githubSignIn.title": "GitHub-Anmeldung",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "Routine-Updates und beendete Läufe bleiben im Chat. Was dich braucht, wird immer gezeigt.",
+  "chat.automation.showToolsHelp": "Zeigt jedes Tool, das ein Bot im Chat ausführt. Fehler erscheinen immer.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Dein Brief liegt in #{title} bereit."
 }

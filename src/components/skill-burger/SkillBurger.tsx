@@ -9,6 +9,7 @@ import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { rememberSavedRun, removeBurger, saveBurger, savedRun, type DraftView, type SavedWorkflow } from "@/lib/skill-burger";
 import { ServiceIcon } from "../ServiceIcon";
+import { BubbleResizeHandle } from "../BubbleResizeHandle";
 import { DraftInputs, DraftSteps, replayLine, type InputChoices } from "./DraftSteps";
 import { BurgerPill, PILL_ACTION, pillMarks, Sheen, WithCount } from "./BurgerPill";
 
@@ -150,7 +151,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
       data-skill-burger={saved ? "saved" : cooking ? "live" : "done"}
       className="skill-burger pointer-events-auto flex max-w-full flex-col items-end gap-1.5 text-ink"
     >
-      <div id={panelId} className="burger-fold w-[21rem] max-w-full" data-folded={folded ? "true" : "false"} inert={folded} aria-hidden={folded || undefined}>
+      <div id={panelId} className="burger-fold bbl bbl-run" data-folded={folded ? "true" : "false"} inert={folded} aria-hidden={folded || undefined}>
       <div className={cn("flex min-h-0 flex-col gap-[3px]", saved && "burger-stacked")}>
       <div className="burger-bun burger-bun-top relative flex items-start gap-1.5 rounded-t-[18px] rounded-b-[8px] bg-raised px-3 pb-2 pt-3.5 shadow-sm">
         <span aria-hidden="true" className="burger-sesame" />
@@ -248,6 +249,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
         </div>
       )}
       </div>
+      <BubbleResizeHandle kind="run" className="bbl-handle" />
       </div>
       {(saving.state === "error" || saving.state === "undone") && (
         <p role={saving.state === "error" ? "alert" : "status"} className={cn("px-3 text-[12px]", saving.state === "error" ? "text-danger" : "text-ink-secondary")}>

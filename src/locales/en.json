@@ -12110,5 +12110,10 @@
   "server.github.card.clone": "{bot} couldn't clone {repo}: GitHub isn't connected.",
   "server.github.card.fetch": "{bot} couldn't fetch from {repo}: GitHub isn't connected.",
   "server.github.card.description": "Connect GitHub so {bot} can push its work to your repositories.",
-  "server.github.card.connectInApps": "Connect GitHub from this card in the app on your computer, or in Apps."
+  "server.github.card.connectInApps": "Connect GitHub from this card in the app on your computer, or in Apps.",
+  "chat.automation.showInChatHelp": "Routine updates and finished runs stay in the chat. Anything that still needs you always shows.",
+  "chat.automation.showToolsHelp": "Show each tool a bot runs in the chat. Errors always show.",
+  "composer.setupTask": "Set up this bot",
+  "composer.emoji": "Emoji",
+  "chat.briefWaiting": "Your brief is ready in #{title}."
 }

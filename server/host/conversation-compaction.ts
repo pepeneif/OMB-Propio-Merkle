@@ -1,5 +1,5 @@
 import { draftSummary, foldPoint } from "../compaction-summary.ts";
-import { compactBudget, compactionReading, contextWindowFor, shouldCompact } from "../context-budget.ts";
+import { compactBudget, compactionReading, contextWindowFor, shouldCompact, withoutContextReading } from "../context-budget.ts";
 import { MAX_SUMMARY_BYTES, selectReplay } from "../context-rebuild.ts";
 import type { ModelCatalog } from "../contracts.ts";
 import type { EngineCompactCheck, EngineCompactOutcome } from "./warm-summary-host.ts";
@@ -83,15 +83,20 @@ export function createConversationCompaction(deps: ConversationCompactionDeps) {
     const context = deps.directContext(bot, threadId, messages);
     const record = deps.latestCompaction(messages) as ({ id: string; firstKeptId?: string; summary: string; foldedThroughId?: string } | undefined);
     // A retry must apply the existing record before considering another fold.
+    const nothingToFold = () => {
+      if (!manual || idle) return;
+      store.appendMessage(threadId, { role: "bot", kind: "activity", tool: {
+        name: "context compaction skipped - nothing new to summarize since the last summary", ok: true } });
+    };
     if (!manual && record && record.id !== task.appliedCompactionId) return;
-    if (manual && record?.id === messages.at(-1)?.id && !record?.firstKeptId) return;
-    if (manual && messages.at(-1)?.kind === "compaction" && messages.at(-1)?.engineCompaction) return;
+    if (manual && record?.id === messages.at(-1)?.id && !record?.firstKeptId) return nothingToFold();
+    if (manual && messages.at(-1)?.kind === "compaction" && messages.at(-1)?.engineCompaction) return nothingToFold();
     const selected = selectReplay(context, {
       budgetBytes: Math.max(1_024, context.reduce((n, entry) => n + Buffer.byteLength(entry.text) + 16, 0) + 4 * MAX_SUMMARY_BYTES + 1_024),
       maxMessages: Number.MAX_SAFE_INTEGER, excludedIds, compaction: record as never,
     });
     const history = selected.transcript.filter(entry => entry.id);
-    if (!history.length) return;
+    if (!history.length) return nothingToFold();
     const measurement = compactionReading(instance.adapter.capabilities, task.lastContextModel === `${instance.instanceId}:${model}` && !task.rewound ? task.usage?.context : undefined);
     const window = contextWindowFor(model, instance.models, measurement?.window);
     const bytes = history.reduce((n, entry) => n + Buffer.byteLength(entry.text), 0);
@@ -105,11 +110,11 @@ export function createConversationCompaction(deps: ConversationCompactionDeps) {
     if (!manual && !foldDue({ engineCompacts, configuredCompactAt: settings?.compactAt, contextTokens: measurement?.tokens, estimatedBytes: bytes,
       window, nativeCompactAt: deps.nativeCompactTokens(instance, model), floor, idleFraction: idle ? deps.idleFraction : 1 })) return;
     const fold = manual ? { folded: history, firstKeptId: "" } : foldPoint(history);
-    if (!fold) return;
+    if (!fold) return nothingToFold();
     const foldedThroughId = manual
       ? context.findLast(entry => !excludedIds.has(entry.id))?.id
       : fold.folded.at(-1)?.id;
-    if (!foldedThroughId) return;
+    if (!foldedThroughId) return nothingToFold();
     const prefix = JSON.stringify(messages);
     const controller = new AbortController();
     idle?.addEventListener("abort", () => controller.abort(), { once: true });
@@ -123,7 +128,12 @@ export function createConversationCompaction(deps: ConversationCompactionDeps) {
         current: () => deps.claimIsCurrent(bot.id, generation, threadId),
       }) : "skipped";
       controller.signal.throwIfAborted();
-      if (engine !== "skipped") return;
+      if (engine !== "skipped") {
+        // The engine folded its own session: the reading taken before it says nothing about the conversation's size
+        // now. `stale` means it folded and the thread moved on, which still leaves the old reading meaningless.
+        if (engine === "done" && task.usage?.context) store.patchTask(bot.id, threadId, { usage: withoutContextReading(task.usage) });
+        return;
+      }
       if (seededFloor && manual) store.patchTask(bot.id, threadId, { contextFloor: floor });
       if (!idle && deps.summarizing) { shown = true; deps.summarizing(threadId, true); }
       const summary = await draftSummary(fold.folded, { signal: controller.signal, generateText: deps.generateText(bot.id, instance) });
@@ -138,6 +148,9 @@ export function createConversationCompaction(deps: ConversationCompactionDeps) {
         compaction: { summary, firstKeptId: fold.firstKeptId, foldedThroughId,
           tokensBefore: measurement?.tokens ?? Math.ceil(bytes / 4), by: manual ? "person" : "harness" },
       }, { kind: "compaction.append", key: `${threadId}:${messages.at(-1)?.id}:${fold.firstKeptId}` });
+      // A reading taken before this summary says nothing about the conversation's size now. Drop it so no chip
+      // (header, composer, breakdown, room) keeps showing the pre-compaction number until a turn measures again.
+      if (task.usage?.context) store.patchTask(bot.id, threadId, { usage: withoutContextReading(task.usage) });
     } finally {
       if (shown) deps.summarizing?.(threadId, false);
       if (deps.controllers.get(threadId)?.generation === generation) deps.controllers.delete(threadId);

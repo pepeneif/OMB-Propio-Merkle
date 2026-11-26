@@ -7410,5 +7410,10 @@
   "server.github.card.description": "Połącz z GitHubem, aby {bot} mógł wysyłać swoją pracę do Twoich repozytoriów.",
   "server.github.card.connectInApps": "Połącz z GitHubem przez tę kartę w aplikacji na komputerze albo w Aplikacjach.",
   "githubSignIn.title": "Logowanie do GitHuba",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "Aktualizacje rutyn i zakończone uruchomienia zostają w czacie. To, co cię potrzebuje, zawsze jest widoczne.",
+  "chat.automation.showToolsHelp": "Pokazuj każde narzędzie, które bot uruchamia w czacie. Błędy są zawsze widoczne.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Twój brief jest gotowy w #{title}."
 }

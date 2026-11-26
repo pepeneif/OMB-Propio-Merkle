@@ -5,7 +5,6 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import type { Bot } from "@/state/store";
 import { useTeamPeople } from "@/state/team-people";
-import { ELEVATED_FLOAT, ELEVATED_HOVER } from "../elevated";
 import { accessOfBot, canShare } from "./access";
 import { PeopleStack } from "./PeopleStack";
 import { ShareBotButton, useTeamName } from "./ShareBotButton";
@@ -48,7 +47,7 @@ export function HeaderShare({ bot }: { bot: Bot }) {
   );
   return (
     <span data-header-share={shared?.kind ?? "private"} className="flex shrink-0 items-center gap-1.5">
-      <ShareBotButton bot={bot} headerMenu={<ExportMore key={bot.threadId} bot={bot} />} className={cn("size-9 items-center justify-center rounded-full text-ink-secondary hover:text-ink", ELEVATED_FLOAT, ELEVATED_HOVER, shared ? WIDE_ONLY : "flex")}
+      <ShareBotButton bot={bot} headerMenu={<ExportMore key={bot.threadId} bot={bot} />} className={cn("size-9 items-center justify-center rounded-full text-ink-secondary transition-colors hover:bg-raised hover:text-ink", shared ? WIDE_ONLY : "flex")}
         leading={(open) => shared?.kind === "everyone" ? marker(t("teamSettings.everyone", { team: teamName }), "bg-accent/15 text-accent", open)
           : shared?.kind === "added" ? marker(t("botAccess.onlyAdded"), "bg-ink/[0.08] text-ink-secondary", open)
           : shared?.kind === "people" ? <>

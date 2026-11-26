@@ -25,11 +25,11 @@ describe("rich table rendering", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain('scope="col"');
   });
-  it("gives a short table its actions without the search box and row count a long one needs", () => {
+  it("gives a short table its actions and, with the search box always on (v140-A16), the row count a long one needs", () => {
     const table = (length: number) => renderToStaticMarkup(createElement(RichTable, { columns: [{ text: "ID" }], rows: Array.from({ length }, (_, i) => [{ text: String(i) }]) }));
     const short = table(8);
-    expect(short).not.toContain('aria-label="Search all rows…"');
-    expect(short).not.toContain("8 of 8 rows");
+    expect(short).toContain('aria-label="Search all rows…"');
+    expect(short).toContain("8 of 8 rows");
     expect(short).toContain('aria-label="Copy results as CSV"');
     const long = table(9);
     expect(long).toContain('aria-label="Search all rows…"');
@@ -54,6 +54,36 @@ describe("rich table rendering", () => {
     await expect(readTableResponse(new Response(new Uint8Array(TABLE_FILE_MAX_BYTES + 1)), signal)).rejects.toThrow("size");
     await expect(readTableResponse(new Response("A,B"), AbortSignal.abort())).rejects.toThrow();
     await expect(readTableResponse(new Response(new Uint8Array([0xff])), signal)).rejects.toThrow();
+  });
+});
+
+describe("a heading lines up with what is under it", () => {
+  const row = (cells: string[]) => cells.map((text) => ({ text }));
+  it("puts the sort button before a numeric heading and after a text one", () => {
+    const html = renderToStaticMarkup(createElement(RichTable, {
+      columns: [{ text: "Reporte" }, { text: "Diferencia" }], rows: [row(["Anterior", "-200.00"])], card: false,
+    }));
+    const numeric = html.slice(html.lastIndexOf("<th"), html.lastIndexOf("</th>"));
+    expect(numeric.indexOf("<button")).toBeLessThan(numeric.indexOf("Diferencia"));
+    const text = html.slice(html.indexOf("<th"), html.indexOf("</th>"));
+    expect(text.indexOf("Reporte")).toBeLessThan(text.indexOf("<button"));
+  });
+  it("gives every numeric column one width so the figures stack", () => {
+    const html = renderToStaticMarkup(createElement(RichTable, {
+      columns: [{ text: "A" }, { text: "B" }], rows: [row(["1.00", "1,234,567.89"])], card: false,
+    }));
+    const widths = [...html.matchAll(/text-align:right;width:(\d+)px/g)].map((match) => match[1]);
+    expect(widths.length).toBe(2);
+    expect(new Set(widths).size).toBe(1);
+  });
+  it("shares one width across equal columns when asked", () => {
+    const html = renderToStaticMarkup(createElement(RichTable, {
+      columns: [{ text: "Límite" }, { text: "Gastado" }, { text: "Disponible" }],
+      rows: [row(["3,588,918.81", "3,338,122.58", "250,796.23"])], card: false, equal: true,
+    }));
+    const widths = [...html.matchAll(/<col style="width:(\d+)px"/g)].map((match) => match[1]);
+    expect(widths.length).toBe(3);
+    expect(new Set(widths).size).toBe(1);
   });
 });
 
@@ -84,7 +114,7 @@ describe("Simple mode's table card", () => {
     expect(html).toMatch(/<button type="button" class="group\/th [^"]*" aria-label="Sort by Sender"[^>]*><span dir="auto">Sender<\/span>/);
     expect(html).toContain("border-t-[0.5px] border-ink/[0.07]");
     expect(html).not.toContain("<footer");
-    expect(html).not.toContain(`aria-label="${"Search all rows…"}"`);
+    expect(html).toContain(`aria-label="${"Search all rows…"}"`);
     expect(html).toContain('data-fit="true"');
   });
 
