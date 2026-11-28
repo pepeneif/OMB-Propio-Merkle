@@ -14,6 +14,7 @@ import { basename, join } from "node:path";
 import { authorizeExternalRuntime, externalRuntimeIsActive, type ExternalRuntimeGrant } from "./external-runtime.ts";
 import { z } from "zod";
 import { DEFAULT_REBUILD_BYTES } from "./context-rebuild.ts";
+import { keepBrowserFrame } from "./browser-frames.ts";
 import { claudeCompactionDisabled, createConversationCompaction } from "./host/conversation-compaction.ts"; import { createResumeCheck } from "./host/resume-check.ts";
 import { compactionReading } from "./context-budget.ts";
 import { autoCompactWindow } from "./drivers/claude.ts";
@@ -6750,10 +6751,9 @@ bus.subscribe((event: RuntimeEvent) => {
           const screenSettled = Promise.race([
             finalScreenFrame(bot.id, event.threadId),
             new Promise<null>((resolve) => { timeout = setTimeout(() => resolve(null), SCREEN_SETTLE_TIMEOUT_MS); }),
-          ]).then((frame) => {
-            if (frame && isCurrent()) {
-              store.insertMessageAfter(event.threadId, settleLeafId, { role: "bot", kind: "screen", png: frame.png, mime: frame.mime });
-            }
+          ]).then((settled) => {
+            if (!settled || !isCurrent()) return;
+            if (!keepBrowserFrame(event.threadId, completedTurnId, settled)) store.insertMessageAfter(event.threadId, settleLeafId, { role: "bot", kind: "screen", png: settled.frame.png, mime: settled.frame.mime });
           }).catch(() => {}).finally(() => {
             clearTimeout(timeout);
           });
@@ -7362,7 +7362,7 @@ function shownScreenHash(threadId: string): string | undefined {
   return shown?.png ? screenFrameHash(shown.png) : undefined;
 }
 
-async function finalScreenFrame(_botId: string, threadId: string): Promise<Frame | null> {
+async function finalScreenFrame(_botId: string, threadId: string): Promise<import("./browser-frames.ts").SettledFrame | null> {
   const entry = screenPollers.get(threadId);
   const owner = turnResourceOwners.get(threadId);
   if (!entry) return null;
@@ -7375,7 +7375,7 @@ async function finalScreenFrame(_botId: string, threadId: string): Promise<Frame
   const frame = entry.last;
   if (!frame || !settledFrameIsNews(shownScreenHash(threadId), frame.png)) return null;
   settledScreenHashes.set(threadId, screenFrameHash(frame.png));
-  return frame;
+  return { frame, surface: entry.surface ?? "computer" };
 }
 
 function threadTitleGate(bot: Pick<BotRecord, "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string } {

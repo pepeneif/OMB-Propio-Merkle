@@ -4168,5 +4168,10 @@
   "server.github.card.description": "Connectez GitHub pour que {bot} puisse pousser son travail vers vos dépôts.",
   "server.github.card.connectInApps": "Connectez GitHub depuis cette carte dans l'app de votre ordinateur, ou dans Apps.",
   "githubSignIn.title": "Connexion à GitHub",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "Les mises à jour des routines et les exécutions terminées restent dans la discussion. Ce qui vous attend s'affiche toujours.",
+  "chat.automation.showToolsHelp": "Affiche chaque outil qu'un bot exécute dans la discussion. Les erreurs s'affichent toujours.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Votre brief est prêt dans #{title}."
 }

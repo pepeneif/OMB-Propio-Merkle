@@ -39,6 +39,9 @@ describe("an object body", () => {
     expect(avatar.getAttribute("role")).toBe("img");
     expect(avatar.getAttribute("aria-label")).toBe("Mugsy");
     expect(avatar.style.width).toBe("64px");
+    // A <title> inside the SVG is a tooltip of its own: hovering the avatar showed the body's name
+    // ("Star", "Mug") instead of the row's tooltip with the bot's name and title.
+    expect(avatar.querySelector("svg title")).toBeNull();
     flushSync(() => root.unmount());
     expect(avatar.childElementCount).toBe(0);
   });

@@ -5,6 +5,7 @@ import type { RunRow, RunView } from "../../../shared/skill-burger/run-view";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { addBurgerPath, undoBurgerEdit } from "@/lib/skill-burger";
+import { BubbleResizeHandle } from "@/components/BubbleResizeHandle";
 import { BurgerPill, PILL_ACTION, pillMarks, Sheen, WithCount } from "./BurgerPill";
 import { RowExtra, RunHistory } from "./RunExtras";
 import { LayerIcon } from "./SkillBurger";
@@ -139,7 +140,7 @@ export function RunBurger({ view, summary, botId, threadId, busy, onDismiss, edi
       data-skill-burger={live ? "running" : failed ? "failed" : edited ? "edited" : "ran"}
       className="skill-burger pointer-events-auto flex max-w-full flex-col items-end gap-1.5 text-ink"
     >
-      <div id={panelId} className="burger-fold w-[21rem] max-w-full" data-folded={folded ? "true" : "false"} inert={folded} aria-hidden={folded || undefined}>
+      <div id={panelId} className="burger-fold bbl bbl-run" data-folded={folded ? "true" : "false"} inert={folded} aria-hidden={folded || undefined}>
       <div className="flex min-h-0 flex-col gap-[3px]">
       <div className="burger-bun burger-bun-top relative flex items-start gap-1.5 rounded-t-[18px] rounded-b-[8px] bg-raised px-3 pb-2 pt-3.5 shadow-sm">
         <span aria-hidden="true" className="burger-sesame" />
@@ -171,6 +172,7 @@ export function RunBurger({ view, summary, botId, threadId, busy, onDismiss, edi
         </div>
       )}
       </div>
+      <BubbleResizeHandle kind="run" className="bbl-handle" />
       </div>
       {offer.state === "error" && <p role="alert" className="px-3 text-[12px] text-danger">{offer.message}</p>}
       <BurgerPill

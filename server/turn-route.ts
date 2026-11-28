@@ -1,6 +1,7 @@
 import type { ModelCatalog, ModelSelection } from "./contracts.ts";
 import { isConversational, type ReplyStyle } from "../shared/reply-style.ts";
 import { offeredEffortLevels, type EffortLevel } from "../shared/wire.ts";
+import { isImageModel } from "./model-kinds.ts";
 
 export type TurnTier = "simple" | "complex";
 
@@ -45,11 +46,11 @@ export function fastModelFor(catalog: ModelCatalog | undefined, current: string,
   if (!catalog) return undefined;
   const currentOption = catalog.options.find((option) => option.id === current);
   if (!currentOption || currentOption.custom) return undefined;
-  if (FAST.test(current)) return current;
+  if (FAST.test(current) && !isImageModel(current)) return current;
   const provider = currentOption.provider;
   const currentVendor = vendor(current);
   const pick = catalog.options.find((option) => {
-    if (option.custom || refused.has(option.id) || !FAST.test(option.id)) return false;
+    if (option.custom || refused.has(option.id) || !FAST.test(option.id) || isImageModel(`${option.id} ${option.label}`)) return false;
     if (provider || option.provider) return option.provider === provider;
     const optionVendor = vendor(option.id);
     if (currentVendor || optionVendor) return optionVendor === currentVendor;

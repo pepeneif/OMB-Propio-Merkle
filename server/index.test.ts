@@ -198,8 +198,10 @@ const managedBoatNameForFixture = (botId: string): string => {
 };
 
 const managedVpsNameForFixture = (botId: string): string => {
+  // vps-computer.ts scopes the name hash to the server installation, whose HOME differs from this process's.
+  const environmentId = readFileSync(join(home, ".openmausbot", "environment-id"), "utf8").trim();
   const botPrefix = botId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "bot";
-  const botHash = createHash("sha256").update(botId).digest("hex").slice(0, 12);
+  const botHash = createHash("sha256").update(environmentId).update("\n").update(botId).digest("hex").slice(0, 12);
   return `openmausbot-vps-${botPrefix}-${botHash}`;
 };
 
@@ -472,7 +474,9 @@ beforeAll(async () => {
       'const args = process.argv.slice(2);',
       `appendFileSync(${JSON.stringify(fakeSshLog)}, JSON.stringify(args) + "\\n");`,
       `if (existsSync(${JSON.stringify(fakeSshUnavailable)})) { console.error("ssh: connect to host fixture-vps port 22: Connection refused"); process.exit(255); }`,
+      // The VPS SSH shim puts -F and its ControlMaster/ControlPath/ControlPersist before every command.
       'if (args[0] === "-F") args.splice(0, 2);',
+      'if (args[0] === "-o" && args[1] === "ControlMaster=auto") args.splice(0, 6);',
       'if (args.length === 4 && args.slice(0, 3).join(" ") === "-O check --") process.exit(255);',
       'if (args.length === 8 && args.slice(0, 6).join(" ") === "-o BatchMode=yes -o PermitLocalCommand=no -T --" && args[7] === "true") process.exit(0);',
       'console.error("unexpected fixture SSH command"); process.exit(127);',

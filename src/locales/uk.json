@@ -4437,5 +4437,10 @@
   "server.github.card.description": "Підключіть GitHub, щоб {bot} міг надсилати роботу у ваші репозиторії.",
   "server.github.card.connectInApps": "Підключіть GitHub через цю картку в застосунку на комп'ютері або в розділі «Застосунки».",
   "githubSignIn.title": "Вхід у GitHub",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "Оновлення рутин і завершені запуски залишаються в чаті. Те, що потребує вас, видно завжди.",
+  "chat.automation.showToolsHelp": "Показувати кожен інструмент, який бот запускає в чаті. Помилки видно завжди.",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "Ваш бриф готовий у #{title}."
 }

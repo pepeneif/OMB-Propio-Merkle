@@ -10572,5 +10572,10 @@
   "server.github.card.description": "連線 GitHub 後，{bot} 就能把工作推送到你的儲存庫。",
   "server.github.card.connectInApps": "請在電腦上的應用程式中透過此卡片連線 GitHub，或在「應用程式」中連線。",
   "githubSignIn.title": "GitHub 登入",
-  "githubSignIn.tokenPlaceholder": "github_pat_…"
+  "githubSignIn.tokenPlaceholder": "github_pat_…",
+  "chat.automation.showInChatHelp": "例行更新與已完成的執行會留在對話中。需要你處理的內容一律顯示。",
+  "chat.automation.showToolsHelp": "顯示機器人在對話中執行的每個工具。錯誤一律顯示。",
+  "composer.setupTask": "__MISSING__composer.setupTask",
+  "composer.emoji": "__MISSING__composer.emoji",
+  "chat.briefWaiting": "你的簡報已在 #{title} 中準備好。"
 }

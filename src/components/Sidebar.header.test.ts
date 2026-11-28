@@ -328,7 +328,7 @@ describe("the button that hides and shows the window's rail of places", () => {
     const column = render();
     expect(column.indexOf("data-rail-toggle")).toBeGreaterThan(-1);
     expect(column.indexOf("data-rail-toggle")).toBeLessThan(column.indexOf("data-sidebar-top-buttons"));
-    expect(toggle(column)).toMatch(/class="[^"]*\bsize-\[46px\][^"]*\brounded-xl\b/);
+    expect(toggle(column)).toMatch(/class="[^"]*\bsize-8\b[^"]*\brounded-md\b/);
     fixture.advanced = false;
     const rail = render();
     expect(rail.indexOf("data-rail-toggle")).toBeLessThan(rail.indexOf("data-sidebar-rail-top"));
@@ -357,7 +357,7 @@ describe("sidebar head and foot", () => {
       const head = at('data-glass-bar="top"');
       const topRow = at("data-sidebar-top-row");
       const search = at('aria-label="Search bots and messages"');
-      const list = at('data-scroll-fade-frame=""');
+      const list = at("glass-scroller");
       const foot = at('data-glass-bar="bottom"');
       const automations = at('data-sidebar-nav="automations"');
       const places = at('data-sidebar-nav="team-map"');

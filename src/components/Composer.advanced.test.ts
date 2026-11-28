@@ -141,10 +141,10 @@ describe("the Advanced composer in a bot chat", () => {
     expect(fixture.call?.fill).toBeUndefined();
   });
 
-  it("holds attach, Work until done, Teach a task, where it works, the approval level and the call mode in the +", () => {
+  it("holds Work until done, Teach a task, where it works, the approval level and the call mode in the +, with attach beside it", () => {
     render({ bot });
     openPlus();
-    expect(keys()).toEqual(["attach", "goal", "teach", "place", "approval", "call:turns", "call:live"]);
+    expect(keys()).toEqual(["goal", "teach", "place", "approval", "call:turns", "call:live"]);
     expect(item("approval")!.textContent).toContain("Before Atlas acts");
     expect(item("place")!.textContent).toContain("Works on");
   });
@@ -152,8 +152,7 @@ describe("the Advanced composer in a bot chat", () => {
   it("attaches through the file picker", () => {
     const picker = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
     render({ bot });
-    openPlus();
-    click(item("attach"));
+    click(document.body.querySelector<HTMLButtonElement>(`button[aria-label="Attach files"]`)!);
     expect(picker).toHaveBeenCalledOnce();
   });
 
@@ -238,7 +237,7 @@ describe("the Advanced composer in a room", () => {
     expect(container.querySelector("[data-test-model]")).toBeNull();
     expect(fixture.groupCall).toBeNull();
     openPlus();
-    expect(keys()).toEqual(["attach", "goal", "teach"]);
+    expect(keys()).toEqual(["goal", "teach"]);
     expect(item("goal")!.textContent).toBe("Finish together");
     restoreComposerDraft(`group:${room.id}:${room.threadId}`, { text: "hello room", attachments: [] });
     render({ group: room, members: [bot, peer] });

@@ -132,8 +132,10 @@ export function ApprovalChip({ choice, quiet = false }: { choice: ApprovalChoice
  * Advanced mode's also hold the thread's approval level, the call mode and where the bot works.
  * With attaching the only choice, the + opens the file picker.
  */
-export function ComposerPlusMenu({ onAttach, goal, teach, approval, callBotId, extraItems = [], circle = false, quiet = false }: {
+export function ComposerPlusMenu({ onAttach, goal, teach, approval, callBotId, extraItems = [], circle = false, quiet = false, attachInMenu = true }: {
   onAttach: () => void;
+  /** Merkle: keep Attach out of the menu while the composer already shows a clip of its own. */
+  attachInMenu?: boolean;
   /** Starts a /learn draft in the field, where the composer offers /learn. */
   teach?: () => void;
   /** Entries a phone composer moves here from its hidden buttons, such as where the bot works. */
@@ -160,7 +162,7 @@ export function ComposerPlusMenu({ onAttach, goal, teach, approval, callBotId, e
   const calling = callBotId !== undefined && (onCall === callBotId || isLiveCallRunning(media.phase) || lineHeldElsewhere);
   const simple = !useAdvancedMode();
   const items: SidebarMenuItem[] = [
-    { key: "attach", label: t("composer.attachFiles"), icon: <Paperclip size={16} />, onSelect: onAttach },
+    ...(attachInMenu ? [{ key: "attach", label: t("composer.attachFiles"), icon: <Paperclip size={16} />, onSelect: onAttach } satisfies SidebarMenuItem] : []),
     ...(goal ? [{
       key: "goal",
       label: t(goal.solo ? "composer.goal.soloAria" : "composer.goal.aria"),
@@ -214,6 +216,7 @@ export function ComposerPlusMenu({ onAttach, goal, teach, approval, callBotId, e
       <Plus size={16} aria-hidden="true" />
     </span>
   );
+  if (!items.length) return null;
   if (!circle && items.length === 1) {
     return (
       <button type="button" onClick={onAttach} aria-label={t("composer.attachFiles")} title={t("composer.attachFiles")} className="flex shrink-0 rounded-full">

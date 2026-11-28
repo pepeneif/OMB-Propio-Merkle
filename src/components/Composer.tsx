@@ -318,6 +318,7 @@ export function Composer({
   const slashSkills = useSlashSkills(group || isPlaceId(bot?.id) ? undefined : bot?.id, threadId, Boolean(slash) && slash?.start !== dismissedSlashAt);
   const canLearn = skillAuthoringEnabled(state.config) && !isPlaceId(bot?.id) &&
     (group ? (members ?? []).some((member) => supportsAgents(state.instances, member)) : supportsAgents(state.instances, bot));
+  const canSetup = !group && Boolean(bot) && supportsAgents(state.instances, bot);
   const commandCandidates = useMemo(() => {
     if (!slash || slash.start === dismissedSlashAt) return [];
     const available: ComposerSlashCommand[] = [];
@@ -427,6 +428,13 @@ export function Composer({
     setCaret(learn.length);
     setChannelMode("chat");
     requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.setSelectionRange(learn.length, learn.length); });
+  };
+  const setupTask = () => {
+    const setup = "/setup ";
+    editText(setup + text.replace(/^\/setup\s*/, "").trimStart());
+    setCaret(setup.length);
+    setChannelMode("chat");
+    requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.setSelectionRange(setup.length, setup.length); });
   };
 
   const sharedChat = Boolean(state.config?.team && !group && profile?.tasks?.some((task) => task.threadId === threadId && !task.private));
@@ -719,6 +727,27 @@ export function Composer({
     }
     setChannelMode((current) => current === "goal" ? "chat" : "goal");
   };
+  // NanoBot's emoji box: a chosen emoji lands at the caret and the field keeps it,
+  // instead of appending at the end. The mirror is untouched, so the caret stays put.
+  const insertEmoji = useCallback(
+    (emoji: string) => {
+      const input = inputRef.current;
+      const start = input?.selectionStart ?? caret;
+      const end = input?.selectionEnd ?? start;
+      const next = `${text.slice(0, start)}${emoji}${text.slice(end)}`;
+      editText(next);
+      const at = start + emoji.length;
+      setCaret(at);
+      requestAnimationFrame(() => {
+        const field = inputRef.current;
+        if (!field) return;
+        field.focus();
+        field.setSelectionRange(at, at);
+      });
+    },
+    [text, caret, editText],
+  );
+
   const goal = !group?.dm ? { on: effectiveChannelMode === "goal", onToggle: toggleGoal, solo: !group } : undefined;
 
   return (
@@ -827,7 +856,7 @@ export function Composer({
           peers={[...(group ? members ?? [] : bots.filter((member) => member.id !== bot?.id)), ...teammates.peers]}
           everyone={Boolean(group && !group.dm)}
           dir="auto"
-          rows={1}
+          rows={2}
           value={text}
           onChange={(e) => {
             if (recording) stopDictation();
@@ -931,14 +960,15 @@ export function Composer({
             className={cn(
               "block max-h-[9rem] w-full resize-none overflow-y-auto bg-transparent placeholder:text-ink-tertiary focus:outline-none",
               !simpleDock && cn(stacked ? "px-2" : "px-1", "text-[15px]"),
-              simpleDock ? "min-h-7 px-0.5 py-1 text-[14px] leading-5" : "min-h-6 py-1 leading-6",
+              simpleDock ? "min-h-7 px-0.5 py-1 text-[14px] leading-5" : "min-h-14 py-1 leading-6",
             )}
           />
           {stacked && (
             <ComposerAdvancedTools profile={profile} bot={modeBot} task={composerTask} locked={locked} remoteClient={remoteClient}
               onAttach={() => fileInput.current?.click()} goal={goal} teach={canLearn ? teachTask : undefined} approval={approvalChoice}
               callBotId={callShown && bot && !group && !placed ? bot.id : undefined}
-              onPin={pinPlace} />
+              onPin={pinPlace} onSetup={setupTask} canSetup={Boolean(canSetup && !group)}
+              onEmoji={insertEmoji} emojiDisabled={Boolean(approval) || locked} />
           )}
           <div data-composer-actions className={cn("flex items-center", simpleDock ? "gap-2" : "gap-1", stacked && "ms-auto")}>
           {(simpleDock ? stoppable : busy && mayStop) && !locked && (

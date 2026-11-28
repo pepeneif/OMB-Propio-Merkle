@@ -2,6 +2,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { loopbackAnswers, unusedLoopbackPort } from "./vps-loopback.ts";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { OWN_GROUP, stopGroup } from "./group-exec.ts";
 import {
   BASE_IMAGE,
@@ -95,6 +97,128 @@ function invalidateVpsStatus(key: string): void {
   pendingStatuses.delete(key);
 }
 
+// A ready desktop outlives a turn: re-checking the whole container on every message cost seconds and
+// never found anything, because the container and the driver stay up between turns. A lease remembers
+// the verified state, and a cheap driver probe every minute proves the same container is still
+// answering; each answer renews the lease, so a turn pays nothing while the desktop keeps answering.
+// A hard ceiling still forces one full inspection every half hour, so nothing rides on a single
+// reading for a whole session.
+const DESKTOP_LEASE_TTL_MS = 30 * 60_000;
+const DESKTOP_LEASE_MAX_MS = 60 * 60_000;
+const DESKTOP_LEASE_PROBE_AFTER_MS = 60_000;
+type DesktopLease = { status: VpsComputerStatus; verifiedAt: number; expiresAt: number; ceilingAt: number };
+const desktopLeases = new Map<string, DesktopLease>();
+const LEASE_FILE = "vps-desktop-leases.json";
+let leaseHydrated = false;
+
+/** The container id is immutable, so a lease restored from disk is only ever trusted after the probe confirms it still answers. */
+function hydrateDesktopLeases(): void {
+  if (leaseHydrated) return;
+  leaseHydrated = true;
+  if (process.env.VITEST) return;
+  try {
+    const stored = JSON.parse(readFileSync(join(DATA_DIR, LEASE_FILE), "utf8")) as Array<[string, DesktopLease]>;
+    if (!Array.isArray(stored)) return;
+    const now = Date.now();
+    for (const entry of stored) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const [key, lease] = entry;
+      if (typeof key !== "string" || !lease?.status?.ready || !lease.status.container_id) continue;
+      if (!Number.isFinite(lease.verifiedAt) || !Number.isFinite(lease.ceilingAt)) continue;
+      // A lease older than its ceiling must be inspected in full once, exactly as if it had never been renewed.
+      if (now >= lease.ceilingAt) continue;
+      // Verified long ago, so the next call probes before trusting it; the window it gets is fresh.
+      desktopLeases.set(key, {
+        status: lease.status,
+        verifiedAt: Math.min(lease.verifiedAt, now - DESKTOP_LEASE_PROBE_AFTER_MS),
+        expiresAt: now + DESKTOP_LEASE_TTL_MS,
+        ceilingAt: lease.ceilingAt,
+      });
+    }
+  } catch {}
+}
+
+function persistDesktopLeases(): void {
+  if (process.env.VITEST) return;
+  const entries = [...desktopLeases.entries()].filter(([, lease]) => lease.status.ready && lease.status.container_id);
+  try { writeFileSync(join(DATA_DIR, LEASE_FILE), JSON.stringify(entries), { mode: 0o600 }); } catch {}
+}
+
+function grantDesktopLease(key: string, status: VpsComputerStatus): void {
+  if (!status.ready || !status.container_id) {
+    dropDesktopLease(key);
+    return;
+  }
+  const now = Date.now();
+  desktopLeases.set(key, {
+    status,
+    verifiedAt: now,
+    expiresAt: now + DESKTOP_LEASE_TTL_MS,
+    ceilingAt: now + DESKTOP_LEASE_MAX_MS,
+  });
+  persistDesktopLeases();
+}
+
+/** A fresh proof keeps the existing ceiling: only a full inspection earns a new one. */
+function renewDesktopLease(key: string, status: VpsComputerStatus): void {
+  if (!status.ready || !status.container_id) return;
+  const existing = desktopLeases.get(key);
+  const now = Date.now();
+  desktopLeases.set(key, {
+    // A frame that arrived is the desktop proof, even when this status came from a container-only check.
+    status: status.desktopReady ? status : { ...status, desktopReady: true, desktop_error: null },
+    verifiedAt: now,
+    expiresAt: now + DESKTOP_LEASE_TTL_MS,
+    ceilingAt: existing && existing.ceilingAt > now ? existing.ceilingAt : now + DESKTOP_LEASE_MAX_MS,
+  });
+  persistDesktopLeases();
+}
+
+function dropDesktopLease(key: string): void {
+  if (desktopLeases.delete(key)) persistDesktopLeases();
+}
+
+/** One `status` round trip inside the leased container: the id is immutable, so answering proves both liveness and identity. */
+async function desktopStillAnswers(alias: string, container: string, runner: VpsCommandRunner): Promise<boolean> {
+  return runner(
+    vpsDockerArgs(alias, cuaExecArgs(["status", "--socket", CUA_SOCKET], { container })),
+    { timeoutMs: 10_000 },
+  ).then(() => true, () => false);
+}
+
+/** Returns the leased status only when the same container still answers; anything else falls through.
+ * `defer`: the caller's own desktop call is about to prove the same thing, so skip the separate probe. */
+async function leasedDesktopStatus(
+  alias: string,
+  key: string,
+  runner: VpsCommandRunner,
+  options: { defer?: boolean } = {},
+): Promise<VpsComputerStatus | null> {
+  hydrateDesktopLeases();
+  const lease = desktopLeases.get(key);
+  if (!lease) return null;
+  const now = Date.now();
+  if (now >= lease.ceilingAt) {
+    desktopLeases.delete(key);
+    return null;
+  }
+  if (now - lease.verifiedAt < DESKTOP_LEASE_PROBE_AFTER_MS) return lease.status;
+  if (options.defer) return lease.status;
+  const container = lease.status.container_id;
+  if (!container) {
+    desktopLeases.delete(key);
+    return null;
+  }
+  if (!(await desktopStillAnswers(alias, container, runner))) {
+    dropDesktopLease(key);
+    return null;
+  }
+  lease.verifiedAt = Date.now();
+  lease.expiresAt = lease.verifiedAt + DESKTOP_LEASE_TTL_MS;
+  persistDesktopLeases();
+  return lease.status;
+}
+
 export type VpsLifecycleAction = "provision" | "start" | "stop" | "remove";
 
 export interface VpsComputerStatus {
@@ -153,7 +277,9 @@ function containerNamePart(botId: string): string {
 }
 
 export function vpsContainerName(botId: string): string {
-  const hash = createHash("sha256").update(botId).digest("hex").slice(0, 12);
+  // Scoped to this installation: a cloned data dir (same bot ids) sharing the same Docker daemon
+  // must never resolve to — or be able to remove — another installation's computer.
+  const hash = createHash("sha256").update(vpsEnvironmentId()).update("\n").update(botId).digest("hex").slice(0, 12);
   return `${VPS_CONTAINER_PREFIX}-${containerNamePart(botId)}-${hash}`;
 }
 
@@ -341,7 +467,7 @@ function hasNoPublishedPorts(config: {
   );
 }
 
-function statusProblem(status: VpsComputerStatus): string | null {
+function statusProblem(status: VpsComputerStatus, checkDesktop = true): string | null {
   if (!status.configured) return "Configure a VPS SSH alias in AI › Other services";
   if (!status.daemonUp) return "Docker over SSH could not reach the VPS; check the SSH alias and Docker on the VPS";
   if (!status.image) return `Prepare the pinned OpenMausBot Cua image on the VPS (Driver ${CUA_DRIVER_VERSION})`;
@@ -352,6 +478,7 @@ function statusProblem(status: VpsComputerStatus): string | null {
   if (status.mounts === "unsafe") return "The VPS container has host mounts; refusing to use it";
   if (status.security === "unsafe") return "The VPS container has unsupported privilege, isolation, or automatic-removal settings";
   if (status.container === "stopped") return "The OpenMausBot VPS container is stopped";
+  if (!checkDesktop) return null;
   if (status.desktop_error) return `The VPS Cua desktop failed to start: ${status.desktop_error}`;
   if (!status.desktopReady) return "The VPS container started, but Cua Driver is not ready yet";
   return null;
@@ -362,6 +489,7 @@ async function computeVpsComputerStatus(
   botId: string,
   runner: VpsCommandRunner,
   requireEnvironmentLabel = false,
+  options: { desktop?: boolean } = {},
 ): Promise<VpsComputerStatus> {
   const alias = vpsSshAlias(cfg);
   const status = emptyStatus(botId, alias);
@@ -464,7 +592,7 @@ async function computeVpsComputerStatus(
       status.network === "private" &&
       status.mounts === "none" &&
       status.security === "hardened";
-    if (canProbe && containerRef) {
+    if (options.desktop !== false && canProbe && containerRef) {
       try {
         const version = await run(cuaExecArgs(["--version"], { container: containerRef }));
         if (version.stdout.trim() !== `cua-driver ${CUA_DRIVER_VERSION}`) throw new Error("unexpected Cua Driver version");
@@ -515,7 +643,7 @@ async function computeVpsComputerStatus(
     }
   }
 
-  status.problem = statusProblem(status);
+  status.problem = statusProblem(status, options.desktop !== false);
   status.ready = status.problem === null;
   return status;
 }
@@ -937,6 +1065,7 @@ export async function removeManagedVpsComputer(
       );
     }
     invalidateVpsStatus(key);
+    dropDesktopLease(key);
     viewerConnections.delete(key);
     if (instance.ownerBotId) stopDesktopTunnel(instance.ownerBotId);
     return { removed: true, name: instance.name };
@@ -949,6 +1078,7 @@ export async function vpsComputerAction(
   botId: string,
   runner: VpsCommandRunner = defaultRunner,
   shouldStop?: () => boolean,
+  options: { deferDesktop?: boolean } = {},
 ): Promise<VpsComputerStatus> {
   cfg = snapshotVpsConfig(cfg);
   const alias = vpsSshAlias(cfg);
@@ -957,12 +1087,22 @@ export async function vpsComputerAction(
   const pending = action === "provision" ? pendingProvisions.get(key) : undefined;
   if (pending) return pending;
   const operation = async () => {
+    if (action === "provision" && runner === defaultRunner) {
+      const leased = await leasedDesktopStatus(alias, key, runner);
+      if (leased) return leased;
+    }
     invalidateVpsStatus(key);
     try {
-      const before = await computeVpsComputerStatus(cfg, botId, runner, Boolean(shouldStop));
+      // A turn that only needs the container running pays the container check now and proves the desktop on
+      // its first screen call. A start, or a container that is not up yet, still verifies the whole desktop.
+      const lazyDesktop = options.deferDesktop === true && action === "provision";
+      const before = await computeVpsComputerStatus(cfg, botId, runner, Boolean(shouldStop), lazyDesktop ? { desktop: false } : {});
       if (!before.daemonUp) throw Object.assign(new Error(before.problem ?? "Docker over SSH is not reachable"), { status: 409 });
       if (action === "stop" && shouldStop && (before.container !== "running" || !before.managed || !shouldStop())) return before;
-      if (action === "provision" && before.ready) return before;
+      if (action === "provision" && before.ready && !lazyDesktop) {
+        if (runner === defaultRunner) grantDesktopLease(key, before);
+        return before;
+      }
       if (action !== "provision" || before.container !== "running") stopDesktopTunnel(botId);
       const run = (args: string[], timeoutMs = 2 * 60_000) => runner(vpsDockerArgs(alias, args), { timeoutMs });
 
@@ -990,6 +1130,7 @@ export async function vpsComputerAction(
         await applyResourcesBeforeStart(containerRef, vpsResources(cfg), run);
         await run(["start", containerRef]);
       } else if (action === "remove") {
+        dropDesktopLease(key);
         // Skips the usability check (remove escapes a broken container); the ownership labels are the only gate.
         if (before.container === "missing") return before;
         if (!before.managed) {
@@ -1005,7 +1146,19 @@ export async function vpsComputerAction(
         assertUsableContainer(before);
         await run(["stop", containerRef]);
       }
-      return await (action === "stop" ? computeVpsComputerStatus(cfg, botId, runner) : waitForVpsReady(cfg, botId, runner));
+      // A running container that already answered the container check needs no start, so its desktop is the
+      // turn's own claim: the first frame proves it and renews the lease, and a dead driver fails that call.
+      // Only a container that is already up can defer its desktop; a stopped one is started and verified.
+      if (lazyDesktop && before.container === "running" && before.ready) {
+        dropDesktopLease(key);
+        // Mountable now, so no lease is granted: the first frame proves the driver and earns one, and a
+        // dead desktop fails that call instead of the turn silently believing it has a screen.
+        return { ...before, ready: true, desktopReady: false, desktop_error: null, problem: null };
+      }
+      const settled = await (action === "stop" ? computeVpsComputerStatus(cfg, botId, runner) : waitForVpsReady(cfg, botId, runner));
+      if (action === "provision" && runner === defaultRunner) grantDesktopLease(key, settled);
+      else dropDesktopLease(key);
+      return settled;
     } finally {
       invalidateVpsStatus(key);
     }
@@ -1028,17 +1181,31 @@ export async function reuseVps(
 /** Auto inspections in flight: a turn joins one unless a start or stop has queued behind it. */
 const pendingAutoInspections = new Map<string, { inspection: Promise<VpsComputerStatus>; lock?: Promise<void>; runner: VpsCommandRunner }>();
 
+/** `desktop: false`: an Auto turn pays only the container check, and the first screen call proves the
+ * desktop when it takes a frame. */
 export async function inspectVpsForAuto(
   cfg: AppConfig,
   botId: string,
   runner: VpsCommandRunner = defaultRunner,
+  options: { desktop?: boolean } = {},
 ): Promise<VpsComputerStatus> {
   cfg = snapshotVpsConfig(cfg);
   const key = vpsLockKey(cfg, botId);
-  if (!key) return computeVpsComputerStatus(cfg, botId, runner);
+  const desktop = options.desktop !== false;
+  if (!key) return computeVpsComputerStatus(cfg, botId, runner, false, { desktop });
   const pending = pendingAutoInspections.get(key);
   if (pending && pending.runner === runner && lifecycleLocks.get(key) === pending.lock) return pending.inspection;
-  const inspection = withVpsLifecycleLock(key, () => computeVpsComputerStatus(cfg, botId, runner), PREPARATION_LOCK_TIMEOUT_MS);
+  const inspection = withVpsLifecycleLock(key, async () => {
+    if (runner === defaultRunner) {
+      const alias = vpsSshAlias(cfg);
+      const leased = alias ? await leasedDesktopStatus(alias, key, runner) : null;
+      if (leased) return leased;
+    }
+    const status = await computeVpsComputerStatus(cfg, botId, runner, false, { desktop });
+    // A container-only check earns no lease: the first frame proves the desktop and grants one.
+    if (runner === defaultRunner && desktop) grantDesktopLease(key, status);
+    return status;
+  }, PREPARATION_LOCK_TIMEOUT_MS);
   // withVpsLifecycleLock queues synchronously, so the newest lock slot is this inspection's own.
   const entry = { inspection, lock: lifecycleLocks.get(key), runner };
   pendingAutoInspections.set(key, entry);
@@ -1206,11 +1373,15 @@ export async function vpsComputerScreenshot(
     }
   };
   const capture = withVpsLifecycleLock(key, async () => {
-    const cached = cacheable ? statusCache.get(key) : undefined;
-    const pendingStatus = cacheable ? pendingStatuses.get(key) : undefined;
+    // The frame call below proves the same container answers, so a lease can skip the separate probe.
+    const leased = cacheable && alias ? await leasedDesktopStatus(alias, key, runner, { defer: true }) : null;
+    const cached = leased ? undefined : cacheable ? statusCache.get(key) : undefined;
+    const pendingStatus = leased ? undefined : cacheable ? pendingStatuses.get(key) : undefined;
     let statusTimer: ReturnType<typeof setTimeout> | undefined;
     const status =
-      cached && cached.expiresAt > Date.now()
+      leased
+        ? leased
+        : cached && cached.expiresAt > Date.now()
         ? cached.status
         : pendingStatus
           ? await Promise.race([
@@ -1230,6 +1401,7 @@ export async function vpsComputerScreenshot(
     }
     if (!status.ready) {
       if (cacheable) statusCache.delete(key);
+      dropDesktopLease(key);
       throw Object.assign(new Error(status.problem ?? "The VPS computer is not ready"), { status: 409 });
     }
     const containerRef = status.container_id ?? status.container_name;
@@ -1267,6 +1439,8 @@ export async function vpsComputerScreenshot(
       frame = { png: encoded, format: checked.mime === "image/jpeg" ? "jpeg" : "png" };
     } catch (error) {
       if (cacheable) statusCache.delete(key);
+      // A desktop that stopped answering frames must be re-inspected in full on the next turn.
+      dropDesktopLease(key);
       throw error;
     } finally {
       const cleanupMs = Math.min(5_000, deadline - Date.now() - COMMAND_TIMEOUT_KILL_GRACE_MS);
@@ -1274,7 +1448,11 @@ export async function vpsComputerScreenshot(
         timeoutMs: cleanupMs,
       }).catch(() => {});
     }
-    if (cacheable) statusCache.set(key, { status, expiresAt: Date.now() + STATUS_CACHE_TTL_MS });
+    if (cacheable) {
+      statusCache.set(key, { status, expiresAt: Date.now() + STATUS_CACHE_TTL_MS });
+      // The frame that just arrived is proof enough for the whole lease window.
+      renewDesktopLease(key, status);
+    }
     return frame;
   });
   pendingScreenshots.set(key, capture);

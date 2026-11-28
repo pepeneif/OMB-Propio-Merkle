@@ -20,7 +20,10 @@ import { ThreadRefText } from "./ThreadRefs";
 import { BugReportNote } from "./BugReportNote";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { MessageBoundary } from "./ChatView";
-import { BOT_BUBBLE_FINISH, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_USER_BUBBLE } from "./chat-bubble";
+import { userTextHasMarkdown } from "@/lib/remark-user-format";
+import { BOT_BUBBLE_FINISH, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_USER_BUBBLE, TINT_BORDER_CLASS, USER_TINT_BORDER } from "./chat-bubble";
+import { MAUS_COLORS } from "@/lib/mascot";
+import { useColorUserBubbles } from "@/lib/user-bubble-preference";
 import { ReplyBlocks } from "./ReplyBlocks";
 import { CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction } from "./MessageActions";
 import { ReactAction, ReactionChips } from "./Reactions";
@@ -35,9 +38,6 @@ import { VoiceNoteBubble, type VoiceNoteAttachment } from "./VoiceNoteBubble";
 import { UserLineNote } from "./RichMessageRow";
 import { RoutedByLine } from "./RoomQueueList";
 
-const USER_COLLAPSE_CHARS = 600;
-const USER_COLLAPSE_LINES = 8;
-
 interface RoomTextMessageProps {
   groupId: string;
   threadId: string;
@@ -50,6 +50,7 @@ interface RoomTextMessageProps {
   replyTarget?: Message;
   emerging: boolean;
   eager: boolean;
+  narration?: boolean;
   onReply: (message: Message) => void;
   canReact: boolean;
   phone: boolean;
@@ -79,6 +80,7 @@ export const RoomTextMessage = memo(function RoomTextMessage({
   replyTarget,
   emerging,
   eager,
+  narration = false,
   onReply,
   canReact,
   phone,
@@ -105,10 +107,15 @@ export const RoomTextMessage = memo(function RoomTextMessage({
   const speech = useSpeech();
   const speaking = speech.messageId === m.id && speech.status !== "idle";
   const focusedSearch = focusNonce !== null;
-  const collapsible = user && !expanded && (display.length > USER_COLLAPSE_CHARS || display.split("\n").length > USER_COLLAPSE_LINES);
+  // 0022 (D5, v140-A5): las burbujas del usuario en salas tampoco se recortan (Jose, 2026-11-04).
+  const collapsible = false;
   useEffect(() => { if (focusedSearch && collapsible) setExpanded(true); }, [focusedSearch, collapsible, focusNonce]);
   const simple = !useAdvancedMode();
   const speakerBot = members.find((member) => member.id === m.from?.botId);
+  // A10 (v140): "Color my messages" marca la burbuja final de cada bot con un borde de 1 px de su color (salas).
+  const colorMine = useColorUserBubbles();
+  const tintedBot = Boolean(USER_TINT_BORDER && colorMine && !user && m.kind === "text" && !narration && !m.automation);
+  const tintBorderColor = tintedBot ? MAUS_COLORS[(speakerBot?.color ?? "green") as keyof typeof MAUS_COLORS] : undefined;
   const botText = rawText; const teammates = useTeammates(); const peers = useMemo(() => [...members, ...teammates.peers], [members, teammates]);
   const pin = roomPin({ id: groupId, pinnedMessageId: pinned ? m.id : undefined }, m, dispatch);
   const forkAction = !phone && !dm && m.kind === "text" && !m.id.startsWith("optimistic-")
@@ -151,16 +158,19 @@ export const RoomTextMessage = memo(function RoomTextMessage({
           data-chat-bubble={simple ? "simple" : ""} data-look={user ? "user-bubble" : "bot-bubble"}
           className={cn(
             tabled ? "w-full" : "w-fit",
-            simple ? cn(!tabled && SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT) : "max-w-[min(var(--chat-bubble-max),var(--chat-bubble-pct))] rounded-2xl text-[15px] leading-relaxed",
+            simple ? cn(!tabled && SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT) : "max-w-[min(var(--chat-bubble-max),var(--chat-bubble-pct))] rounded-2xl text-[17px] leading-relaxed",
             !user && emerging && !streamedReply(m.id) && "turn-answer",
             tabled || (!user && !m.text?.trim() && !m.replyToId && m.attachments?.length)
               ? "text-ink"
-              : !simple && !user && isFormattedReply(m.text ?? "")
+              : narration
+                ? "rounded-2xl px-4 py-[5px] text-[13px] text-ink"
+                : !simple && !user && isFormattedReply(m.text ?? "")
                 ? cn(formattedReplyWidth(m.text ?? ""), "px-1 text-ink")
                 : user
                   ? cn("chat-text whitespace-pre-wrap [overflow-wrap:anywhere] text-ink", simple ? SIMPLE_USER_BUBBLE : "bg-bubble-user px-4 py-2.5")
-                  : simple ? SIMPLE_BOT_BUBBLE : cn("bg-card px-4 py-2.5 text-ink", BOT_BUBBLE_FINISH),
+                  : cn(simple ? SIMPLE_BOT_BUBBLE : cn("bg-card px-4 py-2.5 text-ink", BOT_BUBBLE_FINISH), tintedBot && TINT_BORDER_CLASS),
           )}
+          style={tintedBot ? { borderColor: tintBorderColor } : undefined}
           title={new Date(m.at).toLocaleString(intlLocale())}
         >
           {replyTarget && (
@@ -185,7 +195,9 @@ export const RoomTextMessage = memo(function RoomTextMessage({
                 data-citation-owner={groupId}
                 data-citation-thread={threadId}
               >
-                <ThreadRefText text={display} peers={peers} everyone={!dm} />
+                {userTextHasMarkdown(display)
+                  ? <ChatMarkdown text={display} mentionPeers={peers} everyone={!dm} mentionPerson={mentionPerson} underline message={{ threadId, messageId: m.id }} />
+                  : <ThreadRefText text={display} peers={peers} everyone={!dm} />}
               </div>{m.bugReport ? <BugReportNote report={m.bugReport} /> : m.pointed?.length ? <UserLineNote message={m} /> : null}
               {cited && <SentCitations
                 citations={cited.citations}
